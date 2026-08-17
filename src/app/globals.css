@@ -1,0 +1,312 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #faf8f4; /* app surface, cards */
+  --color-paper-sunk: #f2efe8; /* sidebars, rails, citation blocks, footer */
+  --color-ink: #1a1a19; /* primary text, primary button */
+  --color-ink-prose: #26261f; /* serif body prose */
+  --color-ink-soft: #33332b; /* key-point text */
+  --color-teal: #0f6d63; /* actions, links, HIGH badge, active marker */
+  --color-amber: #b4761a; /* citation markers, caveats, warnings, logo sup */
+
+  --font-serif: var(--font-newsreader), Georgia, serif;
+  --font-sans: var(--font-plex-sans), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+}
+
+:root {
+  /* The redesign specifies a single paper palette, so the app opts out of
+     dark mode rather than inventing an undesigned second theme. */
+  color-scheme: light;
+
+  /* Motion.
+     Two rules govern everything below. First, only transform and opacity are
+     animated on anything that runs often — they're the two properties the
+     compositor can handle without relayout, so they stay smooth. Second,
+     interface motion is fast: a press should feel instant, not performed.
+     Anything slower than ~200ms reads as lag rather than polish. */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-instant: 90ms;
+  --dur-fast: 140ms;
+  --dur: 190ms;
+
+  --hairline: rgba(0, 0, 0, 0.11);
+  --hairline-soft: rgba(0, 0, 0, 0.09);
+  --control-border: rgba(0, 0, 0, 0.15);
+  --meta: rgba(0, 0, 0, 0.45);
+  --meta-dim: rgba(0, 0, 0, 0.4);
+  --body-secondary: rgba(0, 0, 0, 0.62);
+  --placeholder: rgba(0, 0, 0, 0.38);
+  --teal-tint: rgba(15, 109, 99, 0.1);
+  --amber-tint: rgba(180, 118, 26, 0.09);
+  --amber-tint-badge: rgba(180, 118, 26, 0.13);
+  --active-ring: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------------------------------------------------------- type */
+
+.eyebrow {
+  font: 500 10px/1 var(--font-mono);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--meta-dim);
+}
+
+.mono-meta {
+  font: 400 10.5px/1 var(--font-mono);
+  color: var(--meta);
+}
+
+/* The superscript citation marker — amber mono, and a button. */
+.marker {
+  font: 500 10px/1 var(--font-mono);
+  color: var(--color-amber);
+  padding: 0 1px;
+  vertical-align: super;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: 3px;
+}
+/* A tinted pill on hover reads as "this is clickable" without an underline
+   disturbing the line rhythm of the prose. */
+.marker:hover {
+  background: var(--amber-tint-badge);
+}
+
+/* --------------------------------------------------------------- parts */
+
+.badge {
+  font: 500 9.5px/1 var(--font-mono);
+  padding: 3px 5px;
+  border-radius: 3px;
+}
+.badge-high {
+  color: var(--color-teal);
+  background: var(--teal-tint);
+}
+.badge-warn {
+  color: var(--color-amber);
+  background: var(--amber-tint-badge);
+}
+
+/* Every button gets the same press feel: a small, fast scale that snaps back.
+   Scale is the only thing moving, so it never triggers layout. */
+button:not(:disabled),
+.btn-press {
+  transition:
+    transform var(--dur-instant) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-in-out),
+    border-color var(--dur-fast) var(--ease-in-out),
+    color var(--dur-fast) var(--ease-in-out),
+    opacity var(--dur-fast) var(--ease-in-out);
+}
+button:not(:disabled):active,
+.btn-press:active {
+  transform: scale(0.97);
+}
+/* Text-only buttons shouldn't visibly shrink — a nudge reads better. */
+.teal-action:not(:disabled):active,
+.marker:active {
+  transform: scale(0.94);
+}
+
+.teal-action {
+  font: 500 11px/1 var(--font-sans);
+  color: var(--color-teal);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.teal-action:hover {
+  color: #0a4f48;
+}
+.teal-action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.outlined {
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.outlined:hover {
+  border-color: rgba(0, 0, 0, 0.28);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+/* Copy confirmations swap label text; a short rise sells the change without
+   a toast, which would be far more disruption than the action deserves. */
+@keyframes label-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.label-swap {
+  display: inline-block;
+  animation: label-in var(--dur) var(--ease-out);
+}
+
+/* Answers and source cards arrive rather than appearing. Small distance,
+   fast, and only ever on first mount. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.rise-in {
+  animation: rise-in var(--dur) var(--ease-out) both;
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+.dialog-in {
+  animation: dialog-in var(--dur) var(--ease-out);
+}
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.backdrop-in {
+  animation: backdrop-in var(--dur-fast) var(--ease-out);
+}
+
+.source-card {
+  padding: 13px;
+  /* Grid items default to min-width:auto, which refuses to shrink below their
+     content and lets a long URL push the whole column out. */
+  min-width: 0;
+  background: var(--color-paper);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  box-shadow: var(--card-shadow);
+  transition:
+    box-shadow var(--dur-fast) var(--ease-in-out),
+    border-color var(--dur) var(--ease-in-out);
+}
+.source-card:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.07);
+}
+
+/* Flashed when a superscript marker points at this card. The ring fades out
+   on its own rather than snapping off, so the eye can follow where it landed. */
+@keyframes card-flash {
+  0% {
+    border-color: var(--color-teal);
+    box-shadow: 0 0 0 3px var(--teal-tint);
+  }
+  70% {
+    border-color: var(--color-teal);
+    box-shadow: 0 0 0 3px var(--teal-tint);
+  }
+  100% {
+    border-color: var(--hairline);
+    box-shadow: var(--card-shadow);
+  }
+}
+.source-card.is-flashing {
+  animation: card-flash 700ms var(--ease-out);
+}
+
+/* The indent pair that produces a real hanging indent. */
+.citation-block {
+  padding: 10px 11px 10px 27px;
+  background: var(--color-paper-sunk);
+  border-radius: 6px;
+  font: 400 11.5px/1.6 var(--font-mono);
+  color: var(--color-ink-prose);
+  text-indent: -16px;
+  /* Citation URLs are single unbreakable tokens and will happily run past the
+     card edge. `anywhere` also lets the block report a small min-content width,
+     which is what stops it forcing the grid column wider. */
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------- controls */
+
+:where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--color-teal);
+  outline-offset: 2px;
+}
+
+/* The textarea inside the composer has no ring of its own — the field border
+   carries the focus state, so the two don't compete. */
+.composer-field {
+  transition:
+    border-color var(--dur-fast) var(--ease-in-out),
+    box-shadow var(--dur-fast) var(--ease-in-out);
+}
+.composer-field:focus-within {
+  border-color: var(--color-teal);
+  box-shadow: 0 0 0 3px var(--teal-tint);
+}
+.composer-field textarea:focus-visible {
+  outline: none;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes shimmer {
+  0% { opacity: 0.45; }
+  50% { opacity: 0.9; }
+  100% { opacity: 0.45; }
+}
+.animate-pulse-soft {
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

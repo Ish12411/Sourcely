@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Sourcely">
+  <!--
+    Favicon: white serif S on the app's ink tile.
+
+    Georgia rather than Newsreader, which is the wordmark face. An SVG favicon
+    is rendered as its own document and gets no access to the fonts next/font
+    loads for the page, so a webfont here would silently fall back. Georgia is
+    the app's own declared serif fallback, is present on effectively every
+    Windows and macOS machine, and was drawn for legibility at small sizes —
+    which is the whole job at 16px.
+  -->
+  <rect width="64" height="64" rx="14" fill="#1a1a19"/>
+  <!--
+    Size and baseline are measured, not guessed. Georgia's cap height is
+    0.7em, so 47px puts the S at 33/64 = 52% of the tile — the proportion a
+    letterform mark wants. y=48.5 is the baseline that centres that cap on
+    the tile's midpoint; the naive "half the height" value sits visibly high,
+    because a capital's ink sits entirely above the baseline.
+  -->
+  <text
+    x="32"
+    y="48.5"
+    text-anchor="middle"
+    font-family="Georgia, 'Times New Roman', 'Liberation Serif', serif"
+    font-size="47"
+    fill="#faf8f4"
+  >S</text>
+</svg>

@@ -1,0 +1,28 @@
+node_modules/
+.next/
+out/
+build/
+.DS_Store
+*.pem
+
+# Environment — never commit your API keys.
+# The trailing wildcards catch editor backups like .env.local.bak or .env.local~
+.env
+.env.local
+.env*.local
+.env.local.*
+.env*.local.*
+*.env.bak
+
+# ...but the example file carries no secrets and documents what to set,
+# so it has to survive the patterns above.
+!.env.local.example
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+next-env.d.ts
+.vercel
+*.tsbuildinfo
