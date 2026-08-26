@@ -1,0 +1,10 @@
+# Vercel falls back to .gitignore when this file is absent, but being explicit
+# matters for the one file that must never leave this machine: real keys live
+# in .env.local, and production reads its own values from the Vercel dashboard.
+.env
+.env.local
+.env*.local
+
+node_modules
+.next
+*.tsbuildinfo
