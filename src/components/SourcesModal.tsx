@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Dropdown, { type DropdownGroup } from "./Dropdown";
 import SourceCard from "./SourceCard";
 import { STYLES, bibliographyText, isNumericStyle } from "@/lib/citations";
 import {
@@ -17,7 +18,17 @@ const SCOPES: Array<{ id: Scope; label: string }> = [
   { id: "everything", label: "Everything" },
 ];
 
-const STYLE_GROUPS = Array.from(new Set(STYLES.map((s) => s.group)));
+/** STYLES grouped by discipline, in the order STYLES declares them. */
+const STYLE_GROUPS: DropdownGroup[] = Array.from(new Set(STYLES.map((s) => s.group))).map(
+  (group) => ({
+    label: group,
+    options: STYLES.filter((s) => s.group === group).map((s) => ({ value: s.id, label: s.label })),
+  })
+);
+
+const SCOPE_GROUPS: DropdownGroup[] = [
+  { options: SCOPES.map((s) => ({ value: s.id, label: s.label })) },
+];
 
 export type FocusRequest = { number: number; nonce: number };
 
@@ -181,25 +192,21 @@ export default function SourcesModal({
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <Select label="STYLE" value={style} onChange={(v) => onStyleChange(v as StyleId)}>
-              {STYLE_GROUPS.map((group) => (
-                <optgroup key={group} label={group}>
-                  {STYLES.filter((s) => s.group === group).map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.label}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </Select>
+            <Dropdown
+              label="STYLE"
+              value={style}
+              groups={STYLE_GROUPS}
+              onChange={(v) => onStyleChange(v as StyleId)}
+              minWidth={228}
+            />
 
-            <Select label="SCOPE" value={scope} onChange={(v) => onScopeChange(v as Scope)}>
-              {SCOPES.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label}
-                </option>
-              ))}
-            </Select>
+            <Dropdown
+              label="SCOPE"
+              value={scope}
+              groups={SCOPE_GROUPS}
+              onChange={(v) => onScopeChange(v as Scope)}
+              minWidth={196}
+            />
 
             <span style={{ display: "flex", alignItems: "center", gap: 14, marginLeft: "auto" }}>
               <button type="button" className="ink-action" onClick={() => copy("all")} disabled={!rail.length}>
@@ -342,54 +349,3 @@ export default function SourcesModal({
   );
 }
 
-function Select({
-  label,
-  value,
-  onChange,
-  children,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <label
-      style={{
-        minWidth: 0,
-        display: "flex",
-        alignItems: "center",
-        gap: 7,
-        padding: "8px 10px",
-        border: "1px solid var(--control-border)",
-        borderRadius: "var(--radius-control)",
-        background: "var(--color-paper)",
-      }}
-    >
-      <span style={{ font: "500 var(--step-label)/1 var(--font-sans)", color: "var(--meta-dim)", flex: "none" }}>
-        {label}
-      </span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label={label}
-        style={{
-          minWidth: 0,
-          border: 0,
-          background: "transparent",
-          appearance: "none",
-          font: "500 var(--step-ui)/1 var(--font-sans)",
-          color: "var(--color-ink)",
-          outline: "none",
-          cursor: "pointer",
-          paddingRight: 4,
-        }}
-      >
-        {children}
-      </select>
-      <span aria-hidden="true" style={{ color: "var(--meta-dim)", flex: "none" }}>
-        ▾
-      </span>
-    </label>
-  );
-}
