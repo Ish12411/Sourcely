@@ -118,8 +118,8 @@ export default function SourcesModal({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "rgba(26,26,25,.34)",
-        backdropFilter: "blur(2px)",
+        background: "rgba(22,19,13,.38)",
+        backdropFilter: "blur(3px)",
         padding: 24,
       }}
     >
@@ -136,8 +136,8 @@ export default function SourcesModal({
           display: "flex",
           flexDirection: "column",
           background: "var(--color-paper)",
-          borderRadius: 12,
-          boxShadow: "0 24px 70px rgba(0,0,0,.28)",
+          borderRadius: "var(--radius-overlay)",
+          boxShadow: "0 24px 70px var(--shadow-lifted)",
           overflow: "hidden",
         }}
       >
@@ -145,7 +145,7 @@ export default function SourcesModal({
           style={{
             flex: "none",
             padding: "18px 24px",
-            borderBottom: "1px solid rgba(0,0,0,.1)",
+            borderBottom: "1px solid var(--rule)",
             background: "var(--color-paper-sunk)",
             display: "flex",
             flexDirection: "column",
@@ -153,7 +153,7 @@ export default function SourcesModal({
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span className="eyebrow" style={{ color: "var(--meta)" }}>
+            <span className="section-label" style={{ color: "var(--meta)" }}>
               Sources &amp; citations
             </span>
             <span className="mono-meta" style={{ color: "var(--meta-dim)" }}>
@@ -168,7 +168,7 @@ export default function SourcesModal({
                 marginLeft: "auto",
                 width: 28,
                 height: 28,
-                borderRadius: 6,
+                borderRadius: "var(--radius-control)",
                 border: 0,
                 background: "transparent",
                 cursor: "pointer",
@@ -202,18 +202,18 @@ export default function SourcesModal({
             </Select>
 
             <span style={{ display: "flex", alignItems: "center", gap: 14, marginLeft: "auto" }}>
-              <button type="button" className="teal-action" onClick={() => copy("all")} disabled={!rail.length}>
+              <button type="button" className="ink-action" onClick={() => copy("all")} disabled={!rail.length}>
                 <span key={copied === "all" ? "y" : "n"} className="label-swap">
                   {copied === "all" ? "Copied" : numeric ? "Copy all, in order" : "Copy all, alphabetised"}
                 </span>
               </button>
-              <button type="button" className="teal-action" onClick={() => copy("bibtex")} disabled={!rail.length}>
+              <button type="button" className="ink-action" onClick={() => copy("bibtex")} disabled={!rail.length}>
                 <span key={copied === "bibtex" ? "y" : "n"} className="label-swap">
                   {copied === "bibtex" ? "Copied" : "BibTeX"}
                 </span>
               </button>
               <span
-                style={{ font: "400 10px/1 var(--font-mono)", color: "rgba(0,0,0,.35)" }}
+                style={{ font: "400 10px/1 var(--font-mono)", color: "var(--meta-dim)" }}
                 title="Restyling re-renders from stored metadata — no API call."
               >
                 no extra quota
@@ -238,11 +238,11 @@ export default function SourcesModal({
                     alignItems: "center",
                     gap: 9,
                     padding: "16px 2px 12px",
-                    borderTop: "1px dashed rgba(0,0,0,.16)",
+                    borderTop: "1px dashed var(--rule)",
                     marginTop: 18,
                   }}
                 >
-                  <span className="mono-meta" style={{ color: "rgba(0,0,0,.42)" }}>
+                  <span className="mono-meta" style={{ color: "var(--meta-dim)" }}>
                     {groupLabel(group)}
                   </span>
                 </div>
@@ -286,14 +286,14 @@ export default function SourcesModal({
                   gap: 9,
                   flexWrap: "wrap",
                   padding: "16px 2px 12px",
-                  borderTop: "1px dashed rgba(0,0,0,.16)",
+                  borderTop: "1px dashed var(--rule)",
                   marginTop: groups.length ? 22 : 0,
                 }}
               >
-                <span className="eyebrow" style={{ color: "var(--color-amber)" }}>
+                <span className="section-label" style={{ color: "var(--color-mark)" }}>
                   Not enough detail to cite
                 </span>
-                <span className="mono-meta" style={{ color: "rgba(0,0,0,.42)" }}>
+                <span className="mono-meta" style={{ color: "var(--meta-dim)" }}>
                   {incomplete.length} source{incomplete.length === 1 ? "" : "s"} · no author and no date on the page
                 </span>
               </div>
@@ -362,11 +362,11 @@ function Select({
         gap: 7,
         padding: "8px 10px",
         border: "1px solid var(--control-border)",
-        borderRadius: 6,
+        borderRadius: "var(--radius-control)",
         background: "var(--color-paper)",
       }}
     >
-      <span style={{ font: "400 9.5px/1 var(--font-mono)", color: "rgba(0,0,0,.42)", flex: "none" }}>
+      <span style={{ font: "500 var(--step-label)/1 var(--font-sans)", color: "var(--meta-dim)", flex: "none" }}>
         {label}
       </span>
       <select
@@ -378,7 +378,7 @@ function Select({
           border: 0,
           background: "transparent",
           appearance: "none",
-          font: "500 11.5px/1 var(--font-sans)",
+          font: "500 var(--step-ui)/1 var(--font-sans)",
           color: "var(--color-ink)",
           outline: "none",
           cursor: "pointer",
@@ -387,7 +387,7 @@ function Select({
       >
         {children}
       </select>
-      <span aria-hidden="true" style={{ color: "rgba(0,0,0,.35)", flex: "none" }}>
+      <span aria-hidden="true" style={{ color: "var(--meta-dim)", flex: "none" }}>
         ▾
       </span>
     </label>

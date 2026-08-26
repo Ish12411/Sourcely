@@ -15,15 +15,45 @@ import type {
 
 const STORAGE_KEY = "sourcely.tabs.v3";
 
+/** One row as /api/threads returns it. */
+type ServerThread = {
+  id: string;
+  title: string;
+  style: StyleId;
+  scope: Scope;
+  turns: Turn[];
+  shareId: string | null;
+  updatedAt: string;
+};
+
 let seq = 0;
 function newId(prefix: string): string {
   seq += 1;
   return `${prefix}${Date.now().toString(36)}-${seq}`;
 }
 
+/**
+ * Thread ids are real UUIDs because they are also the primary key of the
+ * `conversations` row. Generating them on the client means a thread keeps one
+ * identity from its first keystroke through every later sync, with nothing to
+ * reconcile between a local id and a server id.
+ */
+function newThreadId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  // Older Safari over plain http has no randomUUID; this is only ever a
+  // local-storage key in that case, since sync needs https anyway.
+  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Threads created before accounts existed have ids the database will reject. */
+export function isSyncableId(id: string): boolean {
+  return UUID_RE.test(id);
+}
+
 function newTab(overrides: Partial<Tab> = {}): Tab {
   return {
-    id: newId("t"),
+    id: newThreadId(),
     title: "New research",
     kind: "personal",
     style: DEFAULT_STYLE,
@@ -104,6 +134,155 @@ export function useTabs() {
     }
   }, [tabs, activeId, sidebarCollapsed, hydrated]);
 
+  /* ------------------------------------------------------------ account */
+
+  const [user, setUser] = useState<{ id: string; email: string | null } | null>(null);
+  const [accountLoaded, setAccountLoaded] = useState(false);
+  /** Local threads that predate this account and could be adopted into it. */
+  const [migratable, setMigratable] = useState<Tab[]>([]);
+
+  // localStorage remains the working store: it is instant and survives a
+  // dropped connection. The server is the durable copy, pulled once on load
+  // and written through on change.
+  useEffect(() => {
+    if (!hydrated) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const meRes = await fetch("/api/me");
+        const me = await meRes.json().catch(() => ({}));
+        if (cancelled) return;
+        setUser(me?.user ?? null);
+        if (!me?.user) return;
+
+        const res = await fetch("/api/threads");
+        if (!res.ok) return;
+        const { threads } = (await res.json()) as { threads: ServerThread[] };
+        if (cancelled || !Array.isArray(threads)) return;
+
+        const serverIds = new Set(threads.map((t) => t.id));
+        const local = tabsRef.current;
+
+        // An empty untouched tab is not work worth migrating or keeping.
+        const localWithWork = local.filter((t) => t.turns.length > 0);
+        setMigratable(localWithWork.filter((t) => !serverIds.has(t.id)));
+
+        if (threads.length > 0) {
+          const adopted: Tab[] = threads.map((t) => ({
+            id: t.id,
+            title: t.title,
+            kind: t.shareId ? ("group" as const) : ("personal" as const),
+            style: t.style,
+            scope: t.scope,
+            turns: Array.isArray(t.turns) ? t.turns : [],
+            createdAt: t.updatedAt,
+            shareId: t.shareId,
+            seenTurns: Array.isArray(t.turns) ? t.turns.length : 0,
+          }));
+          // Server threads lead; any local thread not on the server stays
+          // visible so nothing appears to vanish before the migration prompt
+          // has been answered.
+          const keptLocal = local.filter((t) => !serverIds.has(t.id) && t.turns.length > 0);
+          const merged = [...adopted, ...keptLocal];
+          setTabs(merged);
+          setActiveIdRaw((current) =>
+            merged.some((t) => t.id === current) ? current : merged[0].id
+          );
+        }
+      } catch {
+        // Offline or misconfigured: keep working from localStorage.
+      } finally {
+        if (!cancelled) setAccountLoaded(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated]);
+
+  /**
+   * Write-through, debounced. Only threads with actual content are pushed —
+   * an empty tab left open on every device would otherwise sync as clutter.
+   */
+  const pushTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const queueSync = useCallback(
+    (tabId: string) => {
+      if (!user) return;
+      const existing = pushTimers.current.get(tabId);
+      if (existing) clearTimeout(existing);
+
+      pushTimers.current.set(
+        tabId,
+        setTimeout(async () => {
+          pushTimers.current.delete(tabId);
+          const tab = tabsRef.current.find((t) => t.id === tabId);
+          if (!tab || tab.turns.length === 0 || !isSyncableId(tab.id)) return;
+          try {
+            await fetch("/api/threads", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                id: tab.id,
+                title: tab.title,
+                style: tab.style,
+                scope: tab.scope,
+                turns: tab.turns,
+              }),
+            });
+          } catch {
+            // Keep the local copy; the next change retries.
+          }
+        }, 900)
+      );
+    },
+    [user]
+  );
+
+  useEffect(() => {
+    const timers = pushTimers.current;
+    return () => timers.forEach((t) => clearTimeout(t));
+  }, []);
+
+  /** Adopt the local threads listed in `migratable` into the account. */
+  const migrateLocalThreads = useCallback(async (): Promise<{ moved: number }> => {
+    if (!user) return { moved: 0 };
+    let moved = 0;
+
+    for (const tab of migratable) {
+      // A pre-account thread carries an id the database will not accept, so it
+      // is re-keyed on the way up rather than dropped.
+      const id = isSyncableId(tab.id) ? tab.id : newThreadId();
+      try {
+        const res = await fetch("/api/threads", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id,
+            title: tab.title,
+            style: tab.style,
+            scope: tab.scope,
+            turns: tab.turns,
+          }),
+        });
+        if (!res.ok) continue;
+        moved += 1;
+        if (id !== tab.id) {
+          setTabs((prev) => prev.map((t) => (t.id === tab.id ? { ...t, id } : t)));
+          setActiveIdRaw((current) => (current === tab.id ? id : current));
+        }
+      } catch {
+        // Leave it local; the prompt can be offered again next load.
+      }
+    }
+
+    setMigratable([]);
+    return { moved };
+  }, [migratable, user]);
+
+  const dismissMigration = useCallback(() => setMigratable([]), []);
+
   const active = tabs.find((t) => t.id === activeId) ?? tabs[0];
 
   /** Opening a tab clears its inbound badge. */
@@ -114,9 +293,16 @@ export function useTabs() {
 
   const toggleSidebar = useCallback(() => setSidebarCollapsed((v) => !v), []);
 
-  const patch = useCallback((id: string, changes: Partial<Tab>) => {
-    setTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...changes } : t)));
-  }, []);
+  // Every mutation in this hook funnels through patch/patchTurn, so queueing
+  // the sync here covers renames, style and scope changes, and new answers
+  // without each caller having to remember.
+  const patch = useCallback(
+    (id: string, changes: Partial<Tab>) => {
+      setTabs((prev) => prev.map((t) => (t.id === id ? { ...t, ...changes } : t)));
+      queueSync(id);
+    },
+    [queueSync]
+  );
 
   const patchTurn = useCallback((tabId: string, turnId: string, changes: Partial<Turn>) => {
     setTabs((prev) =>
@@ -126,7 +312,8 @@ export function useTabs() {
           : t
       )
     );
-  }, []);
+    queueSync(tabId);
+  }, [queueSync]);
 
   /* ---------------------------------------------------------------- sharing */
 
@@ -150,46 +337,59 @@ export function useTabs() {
     }
   }, []);
 
-  /** Create the server-side row for a tab and return its share id. */
+  /**
+   * Give this thread a share link.
+   *
+   * Threads are rows already, so sharing sets `share_id` on the row that
+   * exists rather than creating a second copy — the pre-accounts version
+   * POSTed a whole new conversation, which would now duplicate the thread.
+   */
   const share = useCallback(
     async (tabId: string): Promise<{ shareId: string } | { error: string }> => {
       const tab = tabsRef.current.find((t) => t.id === tabId);
-      if (!tab) return { error: "That tab no longer exists." };
+      if (!tab) return { error: "That thread no longer exists." };
       if (tab.shareId) return { shareId: tab.shareId };
+      if (!user) return { error: "Sign in to share a thread." };
+      if (tab.turns.length === 0) return { error: "Ask a question first — there is nothing to share yet." };
 
       patch(tabId, { syncing: true, shareError: null });
       try {
-        const res = await fetch("/api/share", {
+        // Make sure the row exists and is current before attaching a link to
+        // it; a thread whose debounce has not fired yet has no row at all.
+        await fetch("/api/threads", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            id: tab.id,
             title: tab.title,
             style: tab.style,
             scope: tab.scope,
             turns: tab.turns,
           }),
         });
+
+        const res = await fetch(`/api/threads/${tab.id}`, { method: "POST" });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           const error = data?.error ?? "Couldn't create the share link.";
           patch(tabId, { syncing: false, shareError: error });
           return { error };
         }
-        const conversation = data as SharedConversation;
+
         patch(tabId, {
           kind: "group",
-          shareId: conversation.shareId,
+          shareId: data.shareId,
           syncing: false,
           shareError: null,
         });
-        return { shareId: conversation.shareId };
+        return { shareId: data.shareId as string };
       } catch {
         const error = "Couldn't reach the server to create a share link.";
         patch(tabId, { syncing: false, shareError: error });
         return { error };
       }
     },
-    [patch]
+    [patch, user]
   );
 
   /** Pull a shared conversation into the sidebar, or focus it if already there. */
@@ -282,6 +482,17 @@ export function useTabs() {
           controllers.current.delete(turn.id);
         });
 
+      // Cancel any queued write first, or the debounce fires after the delete
+      // and resurrects the row.
+      const pending = pushTimers.current.get(id);
+      if (pending) {
+        clearTimeout(pending);
+        pushTimers.current.delete(id);
+      }
+      if (user && isSyncableId(id)) {
+        void fetch(`/api/threads/${id}`, { method: "DELETE" }).catch(() => {});
+      }
+
       if (current.length === 1) {
         const created = newTab({ style: current[0].style, scope: current[0].scope });
         setTabs([created]);
@@ -294,7 +505,7 @@ export function useTabs() {
       setTabs(next);
       if (activeId === id) setActiveId(next[Math.max(0, index - 1)].id);
     },
-    [activeId, setActiveId]
+    [activeId, setActiveId, user]
   );
 
   const renameTab = useCallback(
@@ -433,5 +644,10 @@ export function useTabs() {
     share,
     openShared,
     refreshShared,
+    user,
+    accountLoaded,
+    migratable,
+    migrateLocalThreads,
+    dismissMigration,
   };
 }

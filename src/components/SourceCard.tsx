@@ -19,7 +19,7 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
   }
 
   return (
-    <button type="button" onClick={copy} className="teal-action" aria-live="polite">
+    <button type="button" onClick={copy} className="ink-action" aria-live="polite">
       {/* Keyed so the label remounts and replays its rise on each copy. */}
       <span key={copied ? "copied" : "idle"} className="label-swap">
         {copied ? "Copied" : label}
@@ -36,6 +36,13 @@ function hostOf(url: string): string {
   }
 }
 
+/**
+ * One source, set as an entry in a ruled list rather than a card.
+ *
+ * The reference number sits in its own margin column at display size, which is
+ * how a numbered reference actually reads on a printed page — and it gives the
+ * eye one hard-left column to run down when scanning a dozen of these.
+ */
 export default function SourceCard({
   source,
   style,
@@ -49,7 +56,7 @@ export default function SourceCard({
   flashing: boolean;
   cardRef: (el: HTMLLIElement | null) => void;
   /**
-   * Which question this source came from. Shown only where the card has been
+   * Which question this source came from. Shown only where the entry has been
    * lifted out of its question group — otherwise the group divider says it.
    */
   fromQuestion?: number;
@@ -60,108 +67,103 @@ export default function SourceCard({
 
   const year = source.publishedDate?.slice(0, 4) ?? null;
   const host = hostOf(source.url);
-  // Missing metadata is surfaced, not hidden — it's the cue to check the page.
+  // Missing metadata is surfaced, not hidden — it is the cue to check the page.
   const missingDate = !source.publishedDate;
   const missingAuthor = source.authors.length === 0;
-  // A card with neither renders collapsed: there isn't enough to cite properly.
-  // Same predicate drives the sort, so collapsed cards always land together.
+  // An entry with neither renders collapsed: there is not enough to cite.
+  // The same predicate drives the sort, so collapsed entries land together.
   const partial = isIncomplete(source);
 
   return (
-    <li
-      ref={cardRef}
-      className={`source-card rise-in${flashing ? " is-flashing" : ""}`}
-      style={partial ? { boxShadow: "none" } : undefined}
-    >
-      <div style={{ display: "flex", gap: 10, marginBottom: partial ? 0 : 6 }}>
-        <span
-          style={{
-            flex: "none",
-            font: "500 11.5px/1.5 var(--font-mono)",
-            color: partial ? "rgba(0,0,0,.4)" : "var(--color-amber)",
-          }}
-        >
-          {source.number}
-        </span>
+    <li ref={cardRef} className={`source-entry${flashing ? " is-flashing" : ""}`}>
+      <span className="source-entry-num" aria-hidden="true">
+        {source.number}
+      </span>
+
+      <div style={{ minWidth: 0 }}>
         <a
           href={source.url}
           target="_blank"
           rel="noopener noreferrer"
           style={{
-            font: `${partial ? 400 : 500} 13.5px/1.45 var(--font-sans)`,
-            color: partial ? "rgba(0,0,0,.6)" : "var(--color-ink)",
+            display: "block",
+            font: `400 ${partial ? "0.9375rem" : "1.0625rem"}/1.35 var(--font-serif)`,
+            color: partial ? "var(--body-secondary)" : "var(--color-ink)",
             textDecoration: "none",
+            textWrap: "pretty",
           }}
         >
           {source.title}
         </a>
-      </div>
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          flexWrap: "wrap",
-          margin: partial ? "6px 0 0 21px" : "0 0 8px 21px",
-        }}
-      >
-        <span className="mono-meta">{year ? `${host} · ${year}` : host}</span>
-        {missingDate && <span className="badge badge-warn">NO DATE FOUND</span>}
-        {missingAuthor && <span className="badge badge-warn">NO AUTHOR FOUND</span>}
-        {!partial && source.reliability === "high" && <span className="badge badge-high">HIGH</span>}
-      </div>
-
-      {!partial && (
-        <>
-          {source.summary && (
-            <p
-              style={{
-                margin: "0 0 9px 21px",
-                font: "400 12.5px/1.6 var(--font-sans)",
-                color: "var(--body-secondary)",
-              }}
-            >
-              {source.summary}
-            </p>
-          )}
-
-          <div className="citation-block" style={{ marginLeft: 21 }}>
-            {runs.map((run, i) => (run.italic ? <i key={i}>{run.text}</i> : <span key={i}>{run.text}</span>))}
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              flexWrap: "wrap",
-              margin: "9px 0 0 21px",
-            }}
-          >
-            <span style={{ font: "400 11px/1 var(--font-mono)", color: "rgba(0,0,0,.5)" }}>{inText}</span>
-            <span style={{ marginLeft: "auto", display: "flex", gap: 12 }}>
-              <CopyButton value={citationText} label="Copy entry" />
-              <CopyButton value={inText} label="Copy in-text" />
-            </span>
-          </div>
-        </>
-      )}
-
-      {fromQuestion !== undefined && (
         <div
           style={{
-            marginTop: partial ? 9 : 11,
-            marginLeft: 21,
-            paddingTop: 8,
-            borderTop: "1px solid var(--hairline-soft)",
-            font: "400 10px/1 var(--font-mono)",
-            color: "var(--meta-dim)",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexWrap: "wrap",
+            margin: "6px 0 0",
           }}
         >
-          Question {fromQuestion}
+          <span className="mono-meta">{year ? `${host} · ${year}` : host}</span>
+          {missingDate && <span className="badge badge-missing">no date</span>}
+          {missingAuthor && <span className="badge badge-missing">no author</span>}
+          {!partial && source.reliability === "high" && <span className="badge badge-strong">strong</span>}
+          {!partial && source.reliability === "low" && <span className="badge badge-weak">verify</span>}
         </div>
-      )}
+
+        {!partial && (
+          <>
+            {source.summary && (
+              <p
+                style={{
+                  margin: "9px 0 0",
+                  font: "400 0.875rem/1.62 var(--font-serif)",
+                  color: "var(--body-secondary)",
+                  textWrap: "pretty",
+                }}
+              >
+                {source.summary}
+              </p>
+            )}
+
+            <div className="citation-block" style={{ marginTop: 11 }}>
+              {runs.map((run, i) => (run.italic ? <i key={i}>{run.text}</i> : <span key={i}>{run.text}</span>))}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 14,
+                flexWrap: "wrap",
+                margin: "10px 0 0",
+              }}
+            >
+              <span className="mono-meta">{inText}</span>
+              <span style={{ marginLeft: "auto", display: "flex", gap: 14 }}>
+                <CopyButton value={citationText} label="Copy entry" />
+                <CopyButton value={inText} label="Copy in-text" />
+              </span>
+            </div>
+          </>
+        )}
+
+        {fromQuestion !== undefined && (
+          <div
+            style={{
+              marginTop: 10,
+              paddingTop: 8,
+              borderTop: "1px solid var(--rule-soft)",
+              font: "400 var(--step-label)/1 var(--font-mono)",
+              color: "var(--meta-dim)",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            From question {fromQuestion}
+          </div>
+        )}
+      </div>
     </li>
   );
 }

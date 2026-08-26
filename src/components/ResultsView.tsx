@@ -72,9 +72,10 @@ export default function ResultsView({
   /** The opening answer reads slightly larger than follow-ups. */
   isFirst: boolean;
 }) {
-  const proseFont = isFirst
-    ? "400 17.5px/1.66 var(--font-serif)"
-    : "400 16.5px/1.65 var(--font-serif)";
+  // The opening answer is set one step larger than follow-ups: it carries the
+  // thread, and the difference is what stops a long thread reading as a flat
+  // wall of identical paragraphs.
+  const proseSize = isFirst ? "1.0625rem" : "1rem";
 
   // Shown by both branches below, so it lives outside them.
   function ScopeFallbackNote() {
@@ -85,18 +86,15 @@ export default function ResultsView({
           alignItems: "flex-start",
           gap: 10,
           padding: "11px 13px",
-          background: "var(--amber-tint)",
-          borderLeft: "2px solid var(--color-amber)",
+          background: "var(--mark-tint)",
+          borderLeft: "1px solid var(--color-mark)",
           marginBottom: 20,
         }}
       >
-        <span
-          className="badge"
-          style={{ border: "1px solid rgba(180,118,26,.45)", color: "var(--color-amber)", flex: "none" }}
-        >
-          SCOPE FELL BACK
+        <span className="badge badge-weak" style={{ flex: "none" }}>
+          scope fell back
         </span>
-        <span style={{ font: "400 13px/1.55 var(--font-sans)", color: "#5c4110" }}>
+        <span style={{ font: "400 0.875rem/1.62 var(--font-serif)", color: "var(--color-ink-prose)", maxWidth: "62ch" }}>
           Too few university and government pages matched, so the search widened to the general web. Check the
           metadata on each source before citing.
         </span>
@@ -108,11 +106,11 @@ export default function ResultsView({
   // stack of empty sections, it gets its own compact confirmation.
   if (result.mode === "sources") {
     return (
-      <div className="rise-in">
+      <div className="answer-in">
         {result.scopeFellBack && <ScopeFallbackNote />}
         <p
           style={{
-            font: "400 13.5px/1.65 var(--font-sans)",
+            font: "400 0.9375rem/1.66 var(--font-serif)",
             color: "var(--body-secondary)",
             margin: 0,
           }}
@@ -131,7 +129,7 @@ export default function ResultsView({
         </p>
         <p
           style={{
-            font: "400 12px/1.6 var(--font-sans)",
+            font: "400 0.8125rem/1.6 var(--font-sans)",
             color: "var(--meta)",
             margin: "10px 0 0",
           }}
@@ -144,26 +142,18 @@ export default function ResultsView({
 
   return (
     // Mounts when the answer lands, so the rise doubles as the arrival.
-    <div className="rise-in">
+    <div className="answer-in">
       {result.scopeFellBack && <ScopeFallbackNote />}
 
       {result.overview.split(/\n{2,}/).map((para, i) => (
-        <p
-          key={i}
-          style={{
-            margin: "0 0 20px",
-            font: proseFont,
-            color: "var(--color-ink-prose)",
-            textWrap: "pretty",
-          }}
-        >
+        <p key={i} className="prose" style={{ margin: "0 0 22px", fontSize: proseSize }}>
           <WithMarkers text={para} numberMap={numberMap} onMarkerClick={onMarkerClick} />
         </p>
       ))}
 
       {result.keyPoints.length > 0 && (
         <>
-          <div className="eyebrow" style={{ margin: "0 0 12px" }}>
+          <div className="section-label" style={{ margin: "0 0 12px" }}>
             Key points
           </div>
           <ul
@@ -176,13 +166,32 @@ export default function ResultsView({
               gap: 11,
             }}
           >
+            {/*
+              Numbered in the margin rather than bulleted, matching how source
+              entries are set. One numeral column runs down the whole page.
+            */}
             {result.keyPoints.map((point, i) => (
-              <li key={i} style={{ display: "flex", gap: 12 }}>
+              <li key={i} style={{ display: "grid", gridTemplateColumns: "2.1rem 1fr", columnGap: "0.5rem" }}>
                 <span
                   aria-hidden="true"
-                  style={{ flex: "none", width: 6, height: 6, marginTop: 8, background: "var(--color-teal)" }}
-                />
-                <span style={{ font: "400 14.5px/1.6 var(--font-sans)", color: "var(--color-ink-soft)" }}>
+                  className="tabular"
+                  style={{
+                    font: "400 var(--step-label)/1.7 var(--font-mono)",
+                    color: "var(--meta-dim)",
+                    textAlign: "right",
+                    paddingRight: 2,
+                  }}
+                >
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span
+                  style={{
+                    font: "400 0.9375rem/1.66 var(--font-serif)",
+                    color: "var(--color-ink-soft)",
+                    maxWidth: "64ch",
+                    textWrap: "pretty",
+                  }}
+                >
                   <WithMarkers text={point} numberMap={numberMap} onMarkerClick={onMarkerClick} />
                 </span>
               </li>
@@ -198,12 +207,12 @@ export default function ResultsView({
             display: "flex",
             gap: 11,
             padding: "13px 15px",
-            background: "var(--amber-tint)",
-            borderLeft: "2px solid var(--color-amber)",
+            background: "var(--mark-tint)",
+            borderLeft: "1px solid var(--color-mark)",
             marginBottom: i === result.caveats.length - 1 ? 30 : 10,
           }}
         >
-          <span style={{ font: "400 14px/1.55 var(--font-sans)", color: "#5c4110" }}>
+          <span style={{ font: "400 0.9375rem/1.66 var(--font-serif)", color: "var(--color-ink-prose)", maxWidth: "62ch", textWrap: "pretty" }}>
             <WithMarkers text={caveat} numberMap={numberMap} onMarkerClick={onMarkerClick} />
           </span>
         </div>

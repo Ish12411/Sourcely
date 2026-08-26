@@ -27,6 +27,8 @@ type Props = {
   onAdd: () => void;
   onEdit: (id: string) => void;
   onToggleCollapsed: () => void;
+  /** Signed-in account, or null while it is still being resolved. */
+  user: { id: string; email: string | null } | null;
   /** Mobile drawer visibility; ignored at desktop widths. */
   drawerOpen: boolean;
   onCloseDrawer: () => void;
@@ -42,6 +44,7 @@ export default function Sidebar({
   onToggleCollapsed,
   drawerOpen,
   onCloseDrawer,
+  user,
 }: Props) {
   const personal = tabs.filter((t) => t.kind === "personal");
   const group = tabs.filter((t) => t.kind === "group");
@@ -50,18 +53,21 @@ export default function Sidebar({
     width: collapsed ? 48 : 228,
     flex: "none",
     background: "var(--color-paper-sunk)",
-    borderRight: "1px solid var(--hairline)",
+    borderRight: "1px solid var(--rule)",
     display: "flex",
     flexDirection: "column",
-    transition: "width 160ms ease",
+    // No width transition. Animating width is a layout property, and the one
+    // authored moment in this interface is the answer arriving — a second
+    // competing animation on a discrete, user-initiated toggle earns nothing
+    // and costs a reflow on every frame of it.
   };
 
   if (collapsed) {
     return (
       <aside className="no-print" style={{ ...shell, alignItems: "center", padding: "16px 0 12px", gap: 14 }}>
-        <span style={{ font: "500 15px/1 var(--font-serif)" }}>
+        <span style={{ font: "400 1.0625rem/1 var(--font-display)" }}>
           S
-          <sup style={{ font: "500 8px/1 var(--font-mono)", color: "var(--color-amber)", verticalAlign: "super" }}>
+          <sup style={{ font: "500 8px/1 var(--font-mono)", color: "var(--color-mark)", verticalAlign: "super" }}>
             1
           </sup>
         </span>
@@ -76,7 +82,7 @@ export default function Sidebar({
             height: 24,
             background: "var(--color-ink)",
             color: "var(--color-paper)",
-            borderRadius: 6,
+            borderRadius: "var(--radius-control)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -88,40 +94,39 @@ export default function Sidebar({
           +
         </button>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 7, alignItems: "center", paddingTop: 4 }}>
-          {tabs.map((tab) => {
-            const active = tab.id === activeId;
-            const isGroup = tab.kind === "group";
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => onSelect(tab.id)}
-                title={tab.title}
-                aria-current={active ? "page" : undefined}
-                style={{
-                  width: 26,
-                  height: 26,
-                  borderRadius: 6,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  font: `${active ? 500 : 400} 11px/1 var(--font-mono)`,
-                  border: 0,
-                  cursor: "pointer",
-                  background: active
-                    ? "var(--color-paper)"
-                    : isGroup
-                      ? "var(--teal-tint)"
-                      : "transparent",
-                  boxShadow: active ? "inset 0 0 0 1px rgba(0,0,0,.12)" : undefined,
-                  color: active ? "var(--color-ink)" : isGroup ? "var(--color-teal)" : "rgba(0,0,0,.42)",
-                }}
-              >
-                {initialism(tab.title)}
-              </button>
-            );
-          })}
+        {/*
+          The spine keeps the expanded sidebar's ordering: personal above,
+          group below, separated by a rule. Collapsed, the chips carry no
+          section headings, so grouping is the only thing left telling you
+          which kind you are looking at — interleaving them loses it entirely.
+        */}
+        <div
+          className="no-scrollbar"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 7,
+            alignItems: "center",
+            paddingTop: 4,
+            flex: 1,
+            width: "100%",
+            overflowY: "auto",
+          }}
+        >
+          {personal.map((tab) => (
+            <SpineChip key={tab.id} tab={tab} active={tab.id === activeId} onSelect={onSelect} />
+          ))}
+
+          {personal.length > 0 && group.length > 0 && (
+            <span
+              aria-hidden="true"
+              style={{ width: 16, height: 1, background: "var(--rule)", margin: "3px 0", flex: "none" }}
+            />
+          )}
+
+          {group.map((tab) => (
+            <SpineChip key={tab.id} tab={tab} active={tab.id === activeId} onSelect={onSelect} />
+          ))}
         </div>
 
         <button
@@ -152,7 +157,7 @@ export default function Sidebar({
           aria-label="Close sidebar"
           onClick={onCloseDrawer}
           className="md:hidden"
-          style={{ position: "fixed", inset: 0, zIndex: 20, background: "rgba(0,0,0,.3)", border: 0 }}
+          style={{ position: "fixed", inset: 0, zIndex: 20, background: "var(--scrim)", border: 0 }}
         />
       )}
 
@@ -160,9 +165,9 @@ export default function Sidebar({
         className={`no-print ${drawerOpen ? "" : "-translate-x-full"} fixed inset-y-0 left-0 z-30 md:static md:translate-x-0`}
         style={{ ...shell, paddingTop: 18 }}
       >
-        <div style={{ padding: "0 18px 18px", font: "500 21px/1 var(--font-serif)", letterSpacing: "-.015em" }}>
+        <div style={{ padding: "0 18px 18px", font: "400 1.5rem/1 var(--font-display)", letterSpacing: "-.015em" }}>
           Sourcely
-          <sup style={{ font: "500 10px/1 var(--font-mono)", color: "var(--color-amber)", verticalAlign: "super" }}>
+          <sup style={{ font: "500 10px/1 var(--font-mono)", color: "var(--color-mark)", verticalAlign: "super" }}>
             1
           </sup>
         </div>
@@ -179,8 +184,8 @@ export default function Sidebar({
               padding: "9px 12px",
               background: "var(--color-ink)",
               color: "var(--color-paper)",
-              borderRadius: 7,
-              font: "500 12.5px/1 var(--font-sans)",
+              borderRadius: "var(--radius-control)",
+              font: "500 var(--step-ui)/1 var(--font-sans)",
               border: 0,
               cursor: "pointer",
             }}
@@ -202,6 +207,42 @@ export default function Sidebar({
           />
         </div>
 
+        {user && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 16px",
+              borderWidth: "1px 0 0 0",
+              borderStyle: "solid",
+              borderColor: "var(--rule-soft)",
+            }}
+          >
+            <span
+              title={user.email ?? "Signed in"}
+              style={{
+                minWidth: 0,
+                flex: 1,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                font: "400 var(--step-label)/1.3 var(--font-mono)",
+                color: "var(--meta)",
+              }}
+            >
+              {user.email ?? "Signed in"}
+            </span>
+            {/* A form POST, not a link: a GET sign-out can be triggered by any
+                page that embeds an image pointing at the route. */}
+            <form action="/auth/signout" method="post" style={{ flex: "none" }}>
+              <button type="submit" className="ink-action">
+                Sign out
+              </button>
+            </form>
+          </div>
+        )}
+
         <button
           type="button"
           onClick={onToggleCollapsed}
@@ -215,14 +256,14 @@ export default function Sidebar({
             // and can drop the rule on rerender.
             borderWidth: "1px 0 0 0",
             borderStyle: "solid",
-            borderColor: "var(--hairline-soft)",
+            borderColor: "var(--rule-soft)",
             cursor: "pointer",
             width: "100%",
           }}
         >
           <span style={{ font: "400 12px/1 var(--font-mono)", color: "var(--meta)" }}>«</span>
-          <span style={{ font: "400 10.5px/1 var(--font-mono)", color: "rgba(0,0,0,.42)" }}>Collapse</span>
-          <span style={{ marginLeft: "auto", font: "400 10px/1 var(--font-mono)", color: "rgba(0,0,0,.3)" }}>
+          <span style={{ font: "400 10.5px/1 var(--font-mono)", color: "var(--meta-dim)" }}>Collapse</span>
+          <span style={{ marginLeft: "auto", font: "400 10px/1 var(--font-mono)", color: "var(--meta-dim)" }}>
             ⌘\
           </span>
         </button>
@@ -250,7 +291,7 @@ function TabSection({
 
   return (
     <>
-      <div className="eyebrow" style={{ padding: topPadding ? "20px 18px 8px" : "0 18px 8px" }}>
+      <div className="section-label" style={{ padding: topPadding ? "20px 18px 8px" : "0 18px 8px" }}>
         {label}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 1, padding: "0 8px" }}>
@@ -266,9 +307,9 @@ function TabSection({
                 alignItems: "center",
                 gap: 8,
                 padding: "8px 10px",
-                borderRadius: 6,
+                borderRadius: "var(--radius-control)",
                 background: active ? "var(--color-paper)" : undefined,
-                boxShadow: active ? "var(--active-ring)" : undefined,
+                boxShadow: active ? "inset 0 0 0 1px var(--rule-strong)" : undefined,
                 color: active ? "var(--color-ink)" : "var(--body-secondary)",
               }}
             >
@@ -279,8 +320,8 @@ function TabSection({
                   flex: "none",
                   width: 2,
                   height: 15,
-                  borderRadius: 2,
-                  background: active ? "var(--color-teal)" : "transparent",
+                  borderRadius: "var(--radius-tight)",
+                  background: active ? "var(--color-mark)" : "transparent",
                 }}
               />
 
@@ -308,8 +349,8 @@ function TabSection({
 
               {inbound > 0 && (
                 <span
-                  className="badge badge-high"
-                  style={{ flex: "none", borderRadius: 4 }}
+                  className="badge badge-strong"
+                  style={{ flex: "none", borderRadius: "var(--radius-tight)" }}
                   title={`${inbound} follow-up${inbound === 1 ? "" : "s"} added through the link`}
                 >
                   {inbound} in
@@ -325,7 +366,7 @@ function TabSection({
                 style={{
                   flex: "none",
                   font: "400 11px/1 var(--font-mono)",
-                  color: "rgba(0,0,0,.3)",
+                  color: "var(--meta-dim)",
                   background: "none",
                   border: 0,
                   cursor: "pointer",
@@ -338,5 +379,68 @@ function TabSection({
         })}
       </div>
     </>
+  );
+}
+
+/**
+ * One thread in the collapsed spine.
+ *
+ * A group chip keeps its tint even when inactive, because at 26px there is no
+ * room for a label and the colour is the only thing distinguishing a shared
+ * thread from a private one. Unread follow-ups from other people get a dot,
+ * since the title that would otherwise carry that news is hidden here.
+ */
+function SpineChip({
+  tab,
+  active,
+  onSelect,
+}: {
+  tab: Tab;
+  active: boolean;
+  onSelect: (id: string) => void;
+}) {
+  const isGroup = tab.kind === "group";
+  const unread = inboundCount(tab);
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(tab.id)}
+      title={isGroup ? `${tab.title} — shared` : tab.title}
+      aria-current={active ? "page" : undefined}
+      style={{
+        position: "relative",
+        flex: "none",
+        width: 26,
+        height: 26,
+        borderRadius: "var(--radius-control)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        font: `${active ? 500 : 400} 11px/1 var(--font-mono)`,
+        border: 0,
+        cursor: "pointer",
+        background: active ? "var(--color-paper)" : isGroup ? "var(--mark-tint)" : "transparent",
+        boxShadow: active ? "inset 0 0 0 1px var(--rule)" : undefined,
+        color: active ? "var(--color-ink)" : isGroup ? "var(--color-mark)" : "var(--meta-dim)",
+      }}
+    >
+      {initialism(tab.title)}
+      {unread > 0 && (
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: -1,
+            right: -1,
+            width: 6,
+            height: 6,
+            borderRadius: 99,
+            background: "var(--color-mark)",
+            boxShadow: "0 0 0 2px var(--color-paper-sunk)",
+          }}
+        />
+      )}
+    </button>
   );
 }

@@ -1,48 +1,89 @@
 @import "tailwindcss";
 
-@theme {
-  --color-paper: #faf8f4; /* app surface, cards */
-  --color-paper-sunk: #f2efe8; /* sidebars, rails, citation blocks, footer */
-  --color-ink: #1a1a19; /* primary text, primary button */
-  --color-ink-prose: #26261f; /* serif body prose */
-  --color-ink-soft: #33332b; /* key-point text */
-  --color-teal: #0f6d63; /* actions, links, HIGH badge, active marker */
-  --color-amber: #b4761a; /* citation markers, caveats, warnings, logo sup */
+/*
+  SOURCELY — a printer's proof.
 
-  --font-serif: var(--font-newsreader), Georgia, serif;
-  --font-sans: var(--font-plex-sans), system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  The world is the working document of a press, not the finished book: warm
+  stock, dense black ink, and one red the editor annotates with. Every accent
+  in this file is that single red. Reliability, status and emphasis are carried
+  by weight, fill and rule instead of a second and third hue, because a
+  works-cited list decorated in green, amber and red reads as a dashboard, and
+  a student is not monitoring anything.
+*/
+
+@theme {
+  --color-paper: #f5f1e8; /* the stock everything is printed on */
+  --color-paper-sunk: #ebe5d6; /* panels, rails, citation blocks */
+  --color-paper-raised: #fbf9f3; /* slips sitting on the stock */
+  --color-ink: #16130d; /* press black, warm */
+  --color-ink-prose: #241f16; /* set prose */
+  --color-ink-soft: #3c3529; /* secondary set text */
+  --color-mark: #a32a18; /* the correction mark. the only accent. */
+  --color-mark-deep: #7c1d0f; /* same ink, more bite, for small text */
+
+  --font-display: var(--font-display), "Libre Caslon Display", Georgia, serif;
+  --font-serif: var(--font-serif), "Libre Caslon Text", Georgia, serif;
+  --font-sans: var(--font-sans), system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
 }
 
 :root {
-  /* The redesign specifies a single paper palette, so the app opts out of
-     dark mode rather than inventing an undesigned second theme. */
+  /* One paper world, deliberately. A second undesigned dark theme would be
+     worse than none, and the scene this is used in — a lit room, a laptop, an
+     essay open in the next window — does not ask for one. */
   color-scheme: light;
 
-  /* Motion.
-     Two rules govern everything below. First, only transform and opacity are
-     animated on anything that runs often — they're the two properties the
-     compositor can handle without relayout, so they stay smooth. Second,
-     interface motion is fast: a press should feel instant, not performed.
-     Anything slower than ~200ms reads as lag rather than polish. */
+  /* Motion. Only transform, opacity and compositor-friendly filters animate on
+     anything that runs often. Interface motion is fast: a press should feel
+     instant rather than performed. */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --dur-instant: 90ms;
   --dur-fast: 140ms;
-  --dur: 190ms;
+  --dur: 200ms;
 
-  --hairline: rgba(0, 0, 0, 0.11);
-  --hairline-soft: rgba(0, 0, 0, 0.09);
-  --control-border: rgba(0, 0, 0, 0.15);
-  --meta: rgba(0, 0, 0, 0.45);
-  --meta-dim: rgba(0, 0, 0, 0.4);
-  --body-secondary: rgba(0, 0, 0, 0.62);
-  --placeholder: rgba(0, 0, 0, 0.38);
-  --teal-tint: rgba(15, 109, 99, 0.1);
-  --amber-tint: rgba(180, 118, 26, 0.09);
-  --amber-tint-badge: rgba(180, 118, 26, 0.13);
-  --active-ring: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
-  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  /* Rules are ink at low opacity, never gray: gray on warm stock reads dirty. */
+  --rule: rgba(22, 19, 13, 0.14);
+  --rule-soft: rgba(22, 19, 13, 0.09);
+  /* A border that carries meaning (a badge outline, a selected chip) owes
+     3:1 against its ground; 0.28 measured 1.85:1. Shadows and scrims get their
+     own tokens below rather than borrowing this one — one alpha cannot be a
+     legible border AND a soft shadow AND a page scrim. */
+  --rule-strong: rgba(22, 19, 13, 0.46);
+  --shadow-soft: rgba(22, 19, 13, 0.1);
+  --shadow-lifted: rgba(22, 19, 13, 0.22);
+  --scrim: rgba(22, 19, 13, 0.38);
+  --control-border: rgba(22, 19, 13, 0.2);
+
+  /* Every one of these sets small text, so every one has to clear 4.5:1 — on
+     the sunk panel ground as well as on paper, which is the tighter of the two.
+     Measured: 0.61 is the floor that passes on both, so the hierarchy is built
+     upward from there rather than down from what merely looked right. */
+  --meta: rgba(22, 19, 13, 0.66);
+  --meta-dim: rgba(22, 19, 13, 0.61);
+  --body-secondary: rgba(22, 19, 13, 0.72);
+  --placeholder: rgba(22, 19, 13, 0.61);
+
+  --mark-tint: rgba(163, 42, 24, 0.09);
+  --mark-tint-strong: rgba(163, 42, 24, 0.16);
+
+  /* Fixed rem scale. Product UI is read at consistent DPI, and a fluid heading
+     that shrinks inside a panel looks worse, not more responsive. */
+  --step-display: 2.75rem;
+  --step-title: 1.375rem;
+  --step-prose: 1.0625rem;
+  --step-ui: 0.8125rem;
+  --step-label: 0.6875rem;
+  --step-cite: 0.75rem;
+
+  /* Corner radii. Softer than the original hard 2-3px, which read as machined
+     rather than made. One scale so a button, a field and a panel visibly
+     belong to the same object family. */
+  --radius-tight: 4px;
+  --radius-pill: 5px;
+  --radius-control: 9px;
+  --radius-panel: 12px;
+  --radius-overlay: 16px;
 }
 
 html,
@@ -54,58 +95,184 @@ body {
   background: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-sans);
+  font-size: var(--step-ui);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* --------------------------------------------------- browser surfaces
+
+   The parts nobody draws still carry the design. Selection, caret, scrollbars
+   and focus rings ship with defaults belonging to no design system; leaving
+   them is the clearest tell that a page was assembled rather than built. */
+
+::selection {
+  background: var(--mark-tint-strong);
+  color: var(--color-ink);
+}
+
+* {
+  caret-color: var(--color-mark);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(22, 19, 13, 0.24) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(22, 19, 13, 0.2);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 99px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(22, 19, 13, 0.34);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+:where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--color-mark);
+  outline-offset: 2px;
+  border-radius: var(--radius-control);
+}
+
+a {
+  color: inherit;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+::placeholder {
+  color: var(--placeholder);
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+  accent-color: var(--color-mark);
+}
+
+/* Numerals sitting in columns must not dance as they change. */
+.tabular {
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------------------------------------------------------------- type */
 
-.eyebrow {
-  font: 500 10px/1 var(--font-mono);
-  letter-spacing: 0.09em;
+/* The question, set at poster scale. Hierarchy on this page is carried by size
+   alone, so this step sits deliberately far from every other one. */
+.display {
+  font: 400 var(--step-display) / 1.06 var(--font-display);
+  letter-spacing: -0.021em;
+  color: var(--color-ink);
+  text-wrap: balance;
+  margin: 0;
+}
+
+.title {
+  font: 400 var(--step-title) / 1.25 var(--font-serif);
+  letter-spacing: -0.008em;
+  color: var(--color-ink);
+  text-wrap: balance;
+  margin: 0;
+}
+
+/* Set prose. A 68ch measure and generous leading — this is the part being
+   read, and everything else on the page is apparatus around it. */
+.prose {
+  font: 400 var(--step-prose) / 1.72 var(--font-serif);
+  color: var(--color-ink-prose);
+  max-width: 68ch;
+  text-wrap: pretty;
+}
+
+.section-label {
+  font: 500 var(--step-label) / 1 var(--font-sans);
+  letter-spacing: 0.11em;
   text-transform: uppercase;
   color: var(--meta-dim);
+  font-variant-numeric: tabular-nums;
 }
 
 .mono-meta {
-  font: 400 10.5px/1 var(--font-mono);
+  font: 400 var(--step-label) / 1.4 var(--font-mono);
   color: var(--meta);
+  font-variant-numeric: tabular-nums;
 }
 
-/* The superscript citation marker — amber mono, and a button. */
+/* The citation marker: a red superscript numeral, struck onto the proof. It is
+   a button, and says so on hover without an underline disturbing the line. */
 .marker {
-  font: 500 10px/1 var(--font-mono);
-  color: var(--color-amber);
-  padding: 0 1px;
+  font: 500 0.62em/1 var(--font-mono);
+  color: var(--color-mark);
+  padding: 0 0.15em;
   vertical-align: super;
   cursor: pointer;
   background: none;
   border: 0;
-  border-radius: 3px;
+  border-radius: var(--radius-tight);
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color var(--dur-fast) var(--ease-in-out),
+    color var(--dur-fast) var(--ease-in-out);
 }
-/* A tinted pill on hover reads as "this is clickable" without an underline
-   disturbing the line rhythm of the prose. */
-.marker:hover {
-  background: var(--amber-tint-badge);
+.marker:hover,
+.marker.is-linked {
+  background: var(--mark-tint-strong);
+  color: var(--color-mark-deep);
 }
 
 /* --------------------------------------------------------------- parts */
 
+/* Status without a second hue. A citable source gets a filled mark, a
+   questionable one an outline, an uncitable one a struck rule — legible in
+   grayscale, and to anyone who cannot separate red from green. */
+/*
+  Badges annotate a source; they never outrank its title. So they share one
+  quiet size and weight, and differ only in colour.
+
+  The earlier scheme filled "strong" with solid ink and struck "no date"
+  through. Both failed in use: the black slab was the heaviest thing on the
+  entry, drawing the eye to the source that needed no attention, and a
+  line-through on a label reads as a rendering fault rather than a judgement.
+
+  What is left points attention the right way round. A problem is tinted and
+  therefore visible; a clean source gets a hairline outline and recedes.
+*/
 .badge {
-  font: 500 9.5px/1 var(--font-mono);
-  padding: 3px 5px;
-  border-radius: 3px;
+  font: 500 0.625rem / 1 var(--font-mono);
+  letter-spacing: 0.07em;
+  padding: 3px 6px;
+  border-radius: var(--radius-pill);
+  text-transform: uppercase;
+  white-space: nowrap;
 }
-.badge-high {
-  color: var(--color-teal);
-  background: var(--teal-tint);
+/* Nothing to act on: present, but quiet enough to skip. */
+.badge-strong {
+  color: var(--color-ink-soft);
+  box-shadow: inset 0 0 0 1px var(--rule-strong);
 }
-.badge-warn {
-  color: var(--color-amber);
-  background: var(--amber-tint-badge);
+.badge-medium {
+  color: var(--meta);
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+/* Worth checking before citing — tinted so the eye finds it. */
+.badge-weak,
+.badge-missing {
+  color: var(--color-mark-deep);
+  background: var(--mark-tint);
 }
 
-/* Every button gets the same press feel: a small, fast scale that snaps back.
-   Scale is the only thing moving, so it never triggers layout. */
+/* ------------------------------------------------------------- controls */
+
 button:not(:disabled),
 .btn-press {
   transition:
@@ -117,42 +284,182 @@ button:not(:disabled),
 }
 button:not(:disabled):active,
 .btn-press:active {
-  transform: scale(0.97);
+  transform: scale(0.985);
 }
-/* Text-only buttons shouldn't visibly shrink — a nudge reads better. */
-.teal-action:not(:disabled):active,
+.ink-action:not(:disabled):active,
 .marker:active {
   transform: scale(0.94);
 }
 
-.teal-action {
-  font: 500 11px/1 var(--font-sans);
-  color: var(--color-teal);
+/* Text action. Ink, not red: red belongs to annotation, ink to doing. */
+.ink-action {
+  font: 500 var(--step-label) / 1 var(--font-sans);
+  letter-spacing: 0.02em;
+  color: var(--color-ink);
   background: none;
   border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--rule-strong);
+  text-underline-offset: 0.22em;
+}
+.ink-action:hover:not(:disabled) {
+  text-decoration-color: var(--color-mark);
+  color: var(--color-mark-deep);
+}
+.ink-action:disabled {
+  opacity: 0.4;
+  cursor: default;
+  text-decoration-color: transparent;
+}
+
+/* Primary: solid ink, the headliner of the sheet. */
+.btn-primary {
+  font: 500 var(--step-ui) / 1 var(--font-sans);
+  color: var(--color-paper);
+  background: var(--color-ink);
+  border: 1px solid var(--color-ink);
+  border-radius: var(--radius-control);
+  padding: 9px 15px;
   cursor: pointer;
 }
-.teal-action:hover {
-  color: #0a4f48;
+.btn-primary:hover:not(:disabled) {
+  background: #000;
 }
-.teal-action:disabled {
-  opacity: 0.45;
+.btn-primary:disabled {
+  opacity: 0.32;
+  cursor: default;
+}
+
+/* Secondary: the rule alone. */
+.btn-quiet {
+  font: 500 var(--step-ui) / 1 var(--font-sans);
+  color: var(--color-ink);
+  background: transparent;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-control);
+  padding: 9px 15px;
+  cursor: pointer;
+}
+.btn-quiet:hover:not(:disabled) {
+  border-color: var(--color-ink);
+  background: rgba(22, 19, 13, 0.03);
+}
+.btn-quiet:disabled {
+  opacity: 0.4;
   cursor: default;
 }
 
 .outlined {
   border: 1px solid var(--control-border);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: transparent;
   cursor: pointer;
 }
-.outlined:hover {
-  border-color: rgba(0, 0, 0, 0.28);
-  background: rgba(0, 0, 0, 0.02);
+.outlined:hover:not(:disabled) {
+  border-color: var(--color-ink);
+  background: rgba(22, 19, 13, 0.03);
 }
 
-/* Copy confirmations swap label text; a short rise sells the change without
-   a toast, which would be far more disruption than the action deserves. */
+/* ------------------------------------------------------ source entries
+
+   Not cards. Entries in a ruled list, each opening with its numeral set in the
+   margin the way a reference number sits beside its line on a proof. */
+.source-entry {
+  min-width: 0;
+  padding: 14px 0 16px;
+  border-top: 1px solid var(--rule);
+  display: grid;
+  grid-template-columns: 2.1rem 1fr;
+  column-gap: 0.5rem;
+  transition: background-color var(--dur) var(--ease-in-out);
+}
+.source-entry-num {
+  font: 400 1.5rem/1 var(--font-display);
+  /* This numeral is how a marker in the prose is matched to its entry, so it
+     is content, not ornament: it has to clear 3:1 as large text. The rule
+     tone it was originally set in measured 2.2:1. */
+  color: rgba(22, 19, 13, 0.58);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  padding-right: 2px;
+  transition: color var(--dur) var(--ease-in-out);
+}
+.source-entry:hover .source-entry-num {
+  color: var(--color-mark);
+}
+
+/* Struck when a marker in the prose points here. The mark washes over the
+   entry and recedes, so the eye can follow where it landed. */
+@keyframes entry-strike {
+  0% {
+    background: var(--mark-tint-strong);
+  }
+  70% {
+    background: var(--mark-tint-strong);
+  }
+  100% {
+    background: transparent;
+  }
+}
+.source-entry.is-flashing {
+  animation: entry-strike 900ms var(--ease-out);
+}
+.source-entry.is-flashing .source-entry-num {
+  color: var(--color-mark);
+}
+
+/* The hanging indent every style guide asks for, set in the metadata face. */
+.citation-block {
+  padding: 10px 12px 10px 28px;
+  background: var(--color-paper-sunk);
+  border-radius: var(--radius-panel);
+  font: 400 var(--step-cite) / 1.65 var(--font-mono);
+  color: var(--color-ink-prose);
+  text-indent: -16px;
+  /* A citation URL is one unbreakable token and will run past the edge.
+     `anywhere` also lets the block report a small min-content width, which is
+     what stops it forcing a grid column wider than its track. */
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------ composer */
+
+.composer-field {
+  transition:
+    border-color var(--dur-fast) var(--ease-in-out),
+    box-shadow var(--dur-fast) var(--ease-in-out);
+}
+.composer-field:focus-within {
+  border-color: var(--color-ink);
+  box-shadow: 0 0 0 3px rgba(22, 19, 13, 0.07);
+}
+.composer-field textarea:focus-visible {
+  outline: none;
+}
+
+/* -------------------------------------------------------------- motion
+
+   One authored moment: the answer arriving. Everything else is state
+   feedback, which is not choreography and does not queue. */
+@keyframes answer-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+.answer-in {
+  animation: answer-in 420ms var(--ease-out) both;
+}
+
 @keyframes label-in {
   from {
     opacity: 0;
@@ -168,26 +475,10 @@ button:not(:disabled):active,
   animation: label-in var(--dur) var(--ease-out);
 }
 
-/* Answers and source cards arrive rather than appearing. Small distance,
-   fast, and only ever on first mount. */
-@keyframes rise-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.rise-in {
-  animation: rise-in var(--dur) var(--ease-out) both;
-}
-
 @keyframes dialog-in {
   from {
     opacity: 0;
-    transform: scale(0.97) translateY(4px);
+    transform: scale(0.985) translateY(6px);
   }
   to {
     opacity: 1;
@@ -197,6 +488,7 @@ button:not(:disabled):active,
 .dialog-in {
   animation: dialog-in var(--dur) var(--ease-out);
 }
+
 @keyframes backdrop-in {
   from {
     opacity: 0;
@@ -209,77 +501,19 @@ button:not(:disabled):active,
   animation: backdrop-in var(--dur-fast) var(--ease-out);
 }
 
-.source-card {
-  padding: 13px;
-  /* Grid items default to min-width:auto, which refuses to shrink below their
-     content and lets a long URL push the whole column out. */
-  min-width: 0;
-  background: var(--color-paper);
-  border: 1px solid var(--hairline);
-  border-radius: 8px;
-  box-shadow: var(--card-shadow);
-  transition:
-    box-shadow var(--dur-fast) var(--ease-in-out),
-    border-color var(--dur) var(--ease-in-out);
-}
-.source-card:hover {
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.07);
-}
-
-/* Flashed when a superscript marker points at this card. The ring fades out
-   on its own rather than snapping off, so the eye can follow where it landed. */
-@keyframes card-flash {
+@keyframes shimmer {
   0% {
-    border-color: var(--color-teal);
-    box-shadow: 0 0 0 3px var(--teal-tint);
+    opacity: 0.4;
   }
-  70% {
-    border-color: var(--color-teal);
-    box-shadow: 0 0 0 3px var(--teal-tint);
+  50% {
+    opacity: 0.85;
   }
   100% {
-    border-color: var(--hairline);
-    box-shadow: var(--card-shadow);
+    opacity: 0.4;
   }
 }
-.source-card.is-flashing {
-  animation: card-flash 700ms var(--ease-out);
-}
-
-/* The indent pair that produces a real hanging indent. */
-.citation-block {
-  padding: 10px 11px 10px 27px;
-  background: var(--color-paper-sunk);
-  border-radius: 6px;
-  font: 400 11.5px/1.6 var(--font-mono);
-  color: var(--color-ink-prose);
-  text-indent: -16px;
-  /* Citation URLs are single unbreakable tokens and will happily run past the
-     card edge. `anywhere` also lets the block report a small min-content width,
-     which is what stops it forcing the grid column wider. */
-  overflow-wrap: anywhere;
-}
-
-/* ------------------------------------------------------------- controls */
-
-:where(button, a, input, select, textarea):focus-visible {
-  outline: 2px solid var(--color-teal);
-  outline-offset: 2px;
-}
-
-/* The textarea inside the composer has no ring of its own — the field border
-   carries the focus state, so the two don't compete. */
-.composer-field {
-  transition:
-    border-color var(--dur-fast) var(--ease-in-out),
-    box-shadow var(--dur-fast) var(--ease-in-out);
-}
-.composer-field:focus-within {
-  border-color: var(--color-teal);
-  box-shadow: 0 0 0 3px var(--teal-tint);
-}
-.composer-field textarea:focus-visible {
-  outline: none;
+.animate-pulse-soft {
+  animation: shimmer 1.9s ease-in-out infinite;
 }
 
 .no-scrollbar {
@@ -289,18 +523,31 @@ button:not(:disabled):active,
   display: none;
 }
 
-@keyframes shimmer {
-  0% { opacity: 0.45; }
-  50% { opacity: 0.9; }
-  100% { opacity: 0.45; }
-}
-.animate-pulse-soft {
-  animation: shimmer 1.8s ease-in-out infinite;
+/* ---------------------------------------------------------- narrow
+
+   Structural, not fluid. The display step moves down one fixed value at a
+   breakpoint rather than being clamped, because a heading that scales
+   continuously lands on an arbitrary size at every width and reads worse at
+   most of them. The header sheds its status line before it sheds its actions. */
+@media (max-width: 40rem) {
+  :root {
+    --step-display: 2.125rem;
+  }
+  .app-header {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  .header-meta {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }
@@ -308,5 +555,8 @@ button:not(:disabled):active,
 @media print {
   .no-print {
     display: none !important;
+  }
+  body {
+    background: #fff;
   }
 }

@@ -38,13 +38,28 @@ export default function Workspace({ openShareId }: { openShareId?: string }) {
     share,
     openShared,
     refreshShared,
+    user,
+    migratable,
+    migrateLocalThreads,
+    dismissMigration,
   } = useTabs();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [shareNotice, setShareNotice] = useState<string | null>(null);
+  /**
+   * A one-off message above the thread. `transient` marks a confirmation of
+   * something that already happened — it clears itself, because a banner that
+   * outlives its news becomes furniture. Errors stay until dismissed.
+   */
+  const [shareNotice, setShareNotice] = useState<{ text: string; transient: boolean } | null>(null);
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
   const [sourcesOpen, setSourcesOpen] = useState(false);
+
+  useEffect(() => {
+    if (!shareNotice?.transient) return;
+    const timer = setTimeout(() => setShareNotice(null), 5000);
+    return () => clearTimeout(timer);
+  }, [shareNotice]);
 
   const composer = useRef<ComposerHandle>(null);
   const reading = useRef<HTMLDivElement>(null);
@@ -54,7 +69,7 @@ export default function Workspace({ openShareId }: { openShareId?: string }) {
     if (!hydrated || !openShareId || openedShare.current) return;
     openedShare.current = true;
     void openShared(openShareId).then((result) => {
-      if ("error" in result) setShareNotice(result.error);
+      if ("error" in result) setShareNotice({ text: result.error, transient: false });
     });
   }, [hydrated, openShareId, openShared]);
 
@@ -149,18 +164,19 @@ export default function Workspace({ openShareId }: { openShareId?: string }) {
         onToggleCollapsed={toggleSidebar}
         drawerOpen={drawerOpen}
         onCloseDrawer={() => setDrawerOpen(false)}
+        user={user}
       />
 
       <div style={{ flex: 1, display: "flex", minWidth: 0, minHeight: 0 }}>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
           <header
-            className="no-print"
+            className="no-print app-header"
             style={{
               display: "flex",
               alignItems: "center",
               gap: 12,
-              padding: "15px 34px",
-              borderBottom: "1px solid rgba(0,0,0,.1)",
+              padding: "16px 34px",
+              borderBottom: "1px solid var(--rule)",
               flex: "none",
             }}
           >
@@ -176,7 +192,11 @@ export default function Workspace({ openShareId }: { openShareId?: string }) {
 
             <span
               style={{
-                font: "500 14px/1 var(--font-sans)",
+                // Must be allowed to shrink, or a long thread title pushes the
+                // header actions off the right edge on a narrow screen.
+                flex: 1,
+                minWidth: 0,
+                font: "500 0.875rem/1 var(--font-sans)",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
@@ -185,12 +205,15 @@ export default function Workspace({ openShareId }: { openShareId?: string }) {
               {active.title}
             </span>
 
-            <span style={{ flex: "none", font: "400 11px/1 var(--font-mono)", color: "var(--meta-dim)" }}>
+            <span
+              className="header-meta"
+              style={{ flex: "none", font: "400 var(--step-label)/1 var(--font-mono)", color: "var(--meta-dim)" }}
+            >
               {turnCount} question{turnCount === 1 ? "" : "s"} ·{" "}
               {active.kind === "group" && active.shareId ? "shared" : "local only"}
             </span>
 
-            <span style={{ marginLeft: "auto", display: "flex", gap: 8, flex: "none" }}>
+            <span style={{ display: "flex", gap: 8, flex: "none" }}>
               {showRail && (
                 <button
                   type="button"
@@ -198,15 +221,8 @@ export default function Workspace({ openShareId }: { openShareId?: string }) {
                     setFocusRequest(null);
                     setSourcesOpen(true);
                   }}
-                  style={{
-                    padding: "7px 12px",
-                    borderRadius: 6,
-                    border: 0,
-                    background: "var(--color-ink)",
-                    color: "var(--color-paper)",
-                    font: "500 11.5px/1 var(--font-sans)",
-                    cursor: "pointer",
-                  }}
+                  className="btn-primary"
+                  style={{ padding: "7px 13px" }}
                 >
                   Sources {rail.length}
                 </button>
@@ -230,32 +246,75 @@ export default function Workspace({ openShareId }: { openShareId?: string }) {
               overflowY: "auto",
               padding: turnCount === 0 ? "0 34px" : "30px 34px 0",
               display: "flex",
-              justifyContent: "center",
-              alignItems: turnCount === 0 ? "center" : undefined,
+              // Column, not row. Without a direction this defaults to row, and
+              // any banner above the thread becomes a flex sibling *beside* it
+              // rather than above it — stealing horizontal space and shoving
+              // the reading column off-centre and off the right edge.
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: turnCount === 0 ? "center" : "flex-start",
             }}
           >
+            {migratable.length > 0 && (
+              <MigrationPrompt
+                count={migratable.length}
+                onMove={async () => {
+                  const { moved } = await migrateLocalThreads();
+                  setShareNotice({
+                    text:
+                      moved > 0
+                        ? `Moved ${moved} thread${moved === 1 ? "" : "s"} into your account.`
+                        : "Nothing could be moved. Your threads are still here on this device.",
+                    // A failure is worth reading at your own pace; a success is not.
+                    transient: moved > 0,
+                  });
+                }}
+                onDismiss={dismissMigration}
+              />
+            )}
+
             {shareNotice && (
-              <div style={{ width: "100%", maxWidth: 680, marginTop: 24 }}>
+              <div style={{ width: "100%", maxWidth: 744, marginBottom: 24 }}>
                 <div
+                  role="status"
                   style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 12,
                     padding: "11px 13px",
-                    background: "var(--amber-tint)",
-                    borderLeft: "2px solid var(--color-amber)",
-                    font: "400 13px/1.55 var(--font-sans)",
-                    color: "#5c4110",
+                    background: "var(--mark-tint)",
+                    borderLeft: "1px solid var(--color-mark)",
+                    borderRadius: "var(--radius-tight)",
+                    font: "400 0.8125rem/1.55 var(--font-sans)",
+                    color: "var(--color-ink-prose)",
                   }}
                 >
-                  {shareNotice}
+                  <span style={{ flex: 1, minWidth: 0 }}>{shareNotice.text}</span>
+                  <button
+                    type="button"
+                    onClick={() => setShareNotice(null)}
+                    aria-label="Dismiss"
+                    style={{
+                      flex: "none",
+                      border: 0,
+                      background: "none",
+                      cursor: "pointer",
+                      font: "400 0.75rem/1 var(--font-mono)",
+                      color: "var(--meta)",
+                    }}
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
             )}
 
             {turnCount === 0 ? (
-              <div style={{ width: "100%", maxWidth: 680, display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <div style={{ width: "100%", maxWidth: 744, display: "flex", flexDirection: "column", alignItems: "center" }}>
                 <div style={{ font: "500 21px/1 var(--font-serif)", letterSpacing: "-.015em", marginBottom: 14 }}>
                   Sourcely
                   <sup
-                    style={{ font: "500 10px/1 var(--font-mono)", color: "var(--color-amber)", verticalAlign: "super" }}
+                    style={{ font: "500 10px/1 var(--font-mono)", color: "var(--color-mark)", verticalAlign: "super" }}
                   >
                     1
                   </sup>
@@ -273,7 +332,7 @@ export default function Workspace({ openShareId }: { openShareId?: string }) {
                 <Composer ref={composer} busy={busy} variant="empty" suggestions={suggestions} onSubmit={(q) => void ask(active.id, q)} />
               </div>
             ) : (
-              <div style={{ width: "100%", maxWidth: 680, paddingBottom: 40 }}>
+              <div style={{ width: "100%", maxWidth: 744, paddingBottom: 40 }}>
                 <Thread
                   turns={active.turns}
                   numberMaps={numberMap}
@@ -290,7 +349,7 @@ export default function Workspace({ openShareId }: { openShareId?: string }) {
               className="no-print"
               style={{
                 flex: "none",
-                borderTop: "1px solid var(--hairline-soft)",
+                borderTop: "1px solid var(--rule-soft)",
                 padding: "16px 34px",
                 background: "var(--color-paper-sunk)",
                 display: "flex",
@@ -333,6 +392,72 @@ export default function Workspace({ openShareId }: { openShareId?: string }) {
           }}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Offered once, when someone signs in on a device that already has threads in
+ * it. Nothing moves without an answer: on a shared school computer, silently
+ * claiming whatever is in the browser would attach someone else's work to this
+ * account.
+ */
+function MigrationPrompt({
+  count,
+  onMove,
+  onDismiss,
+}: {
+  count: number;
+  onMove: () => void | Promise<void>;
+  onDismiss: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        maxWidth: 744,
+        marginBottom: 24,
+        padding: "14px 16px",
+        background: "var(--color-paper-sunk)",
+        borderLeft: "1px solid var(--color-mark)",
+      }}
+    >
+      <p
+        style={{
+          margin: 0,
+          font: "400 0.9375rem/1.6 var(--font-serif)",
+          color: "var(--color-ink-prose)",
+          maxWidth: "58ch",
+        }}
+      >
+        {count} thread{count === 1 ? "" : "s"} on this device {count === 1 ? "is" : "are"} not in your
+        account yet. Move {count === 1 ? "it" : "them"} in, and {count === 1 ? "it" : "they"} will follow
+        you to any device you sign in on.
+      </p>
+      <div style={{ display: "flex", gap: 12, marginTop: 12, alignItems: "center" }}>
+        <button
+          type="button"
+          className="btn-primary"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await onMove();
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <span key={busy ? "b" : "i"} className="label-swap">
+            {busy ? "Moving…" : `Move ${count === 1 ? "it" : "them"} in`}
+          </span>
+        </button>
+        <button type="button" className="ink-action" onClick={onDismiss} disabled={busy}>
+          Keep on this device only
+        </button>
+      </div>
     </div>
   );
 }

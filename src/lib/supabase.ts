@@ -1,10 +1,18 @@
 /**
- * Minimal Supabase access over PostgREST.
+ * Minimal Supabase access over PostgREST, using the service-role key.
  *
- * Deliberately server-side only, using the service-role key. Row Level
- * Security can stay fully closed to the public: the browser never talks to
- * Supabase, it talks to our own /api/share routes, which only ever look a row
- * up by its unguessable share id. No anon key ships to the client.
+ * Server-side only. All thread data flows through this module and this app's
+ * own /api routes, never from the browser, so Row Level Security stays fully
+ * closed with no policies at all.
+ *
+ * Since accounts were added the browser does hold the anon key, but only to
+ * sign people in and out — it reads and writes no table. That key confers no
+ * data access on its own, which is exactly why RLS can stay shut: with no
+ * policies, an anon-key request to any table returns nothing.
+ *
+ * The consequence to remember: the service-role key bypasses RLS entirely, so
+ * the `owner_id` filters in this file are the only thing standing between one
+ * person's threads and another's. There is no database-level backstop.
  */
 
 import type { SharedConversation, Scope, StyleId, Turn } from "./types";
@@ -97,6 +105,8 @@ export async function createConversation(input: {
   style: StyleId;
   scope: Scope;
   turns: Turn[];
+  /** Who owns it. Null only for rows created before accounts existed. */
+  ownerId?: string | null;
 }): Promise<SharedConversation> {
   const shareId = newShareId();
   const res = await rest(TABLE, {
@@ -108,6 +118,7 @@ export async function createConversation(input: {
       style: input.style,
       scope: input.scope,
       turns: input.turns,
+      owner_id: input.ownerId ?? null,
     }),
   });
   const rows = (await res.json()) as Row[];
@@ -138,4 +149,109 @@ export async function updateConversation(
   });
   const rows = (await res.json()) as Row[];
   return rows.length ? toConversation(rows[0]) : null;
+}
+
+/* ------------------------------------------------------------- threads
+
+   A signed-in person's own threads. Same table as shared conversations: a
+   thread with a share_id is shared, one without is private to its owner. One
+   table means "make this thread shareable" is a column write, not a migration
+   between two stores.
+
+   Every function here takes an ownerId and filters on it. The service-role key
+   bypasses Row Level Security, so this filter IS the access control — there is
+   no second layer behind it to catch a mistake. */
+
+export type OwnedThread = {
+  id: string;
+  title: string;
+  style: StyleId;
+  scope: Scope;
+  turns: Turn[];
+  shareId: string | null;
+  updatedAt: string;
+};
+
+type OwnedRow = {
+  id: string;
+  title: string;
+  style: string;
+  scope: string;
+  turns: Turn[];
+  share_id: string | null;
+  updated_at: string;
+};
+
+function toThread(row: OwnedRow): OwnedThread {
+  return {
+    id: row.id,
+    title: row.title,
+    style: row.style as StyleId,
+    scope: row.scope as Scope,
+    turns: Array.isArray(row.turns) ? row.turns : [],
+    shareId: row.share_id,
+    updatedAt: row.updated_at,
+  };
+}
+
+export async function listThreads(ownerId: string): Promise<OwnedThread[]> {
+  const res = await rest(
+    `${TABLE}?owner_id=eq.${encodeURIComponent(ownerId)}&select=*&order=updated_at.desc`
+  );
+  const rows = (await res.json()) as OwnedRow[];
+  return rows.map(toThread);
+}
+
+/**
+ * Create or update one thread. The client supplies the id, so a thread keeps
+ * the same identity from the moment it is created locally through every later
+ * sync — no reconciliation of local ids against server ids.
+ */
+export async function upsertThread(input: {
+  id: string;
+  ownerId: string;
+  title: string;
+  style: StyleId;
+  scope: Scope;
+  turns: Turn[];
+}): Promise<OwnedThread> {
+  const res = await rest(TABLE, {
+    method: "POST",
+    prefer: "resolution=merge-duplicates,return=representation",
+    body: JSON.stringify({
+      id: input.id,
+      owner_id: input.ownerId,
+      title: input.title,
+      style: input.style,
+      scope: input.scope,
+      turns: input.turns,
+      updated_at: new Date().toISOString(),
+    }),
+  });
+  const rows = (await res.json()) as OwnedRow[];
+  if (!rows.length) throw new ShareError("Supabase wrote no row.", 502);
+  return toThread(rows[0]);
+}
+
+/** Deletes only if the caller owns it; a foreign id silently matches nothing. */
+export async function deleteThread(id: string, ownerId: string): Promise<void> {
+  await rest(
+    `${TABLE}?id=eq.${encodeURIComponent(id)}&owner_id=eq.${encodeURIComponent(ownerId)}`,
+    { method: "DELETE" }
+  );
+}
+
+/** Attach a share id to a thread the caller owns, making it reachable by link. */
+export async function shareOwnedThread(id: string, ownerId: string): Promise<string | null> {
+  const shareId = newShareId();
+  const res = await rest(
+    `${TABLE}?id=eq.${encodeURIComponent(id)}&owner_id=eq.${encodeURIComponent(ownerId)}`,
+    {
+      method: "PATCH",
+      prefer: "return=representation",
+      body: JSON.stringify({ share_id: shareId, updated_at: new Date().toISOString() }),
+    }
+  );
+  const rows = (await res.json()) as OwnedRow[];
+  return rows.length ? rows[0].share_id : null;
 }

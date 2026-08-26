@@ -45,27 +45,106 @@ wider net, and URLs already shown in the thread are dropped — so you get genui
 same ones again. If filtering would leave fewer than three sources, it keeps the unfiltered set instead of
 returning almost nothing.
 
+## Accounts
+
+Signing in is required. Threads belong to an account and follow you to any device you sign
+in on; the alternative was threads that live in one browser and vanish with its cache.
+
+Two ways in: **Google**, or **email and password**.
+
+### Why email confirmation is off
+
+Supabase's built-in email sender allows **2 emails per hour, across the whole project**.
+With confirmation on, the third person to sign up in an hour gets a 429 and simply cannot
+create an account. That cap applies only to sending — Google sign-ups and all ordinary
+logins send nothing and are unaffected.
+
+So confirmation is off: signing up with email sends no message at all and the cap never
+applies. The trade-offs, stated plainly:
+
+- Nobody verifies they own the address they typed.
+- Password reset still needs an email, so it is still capped at 2/hour.
+
+Both are fixed by adding a custom SMTP provider (Resend's free tier is 3,000/month) under
+*Authentication → Emails → SMTP Settings*, after which confirmation can be switched back on.
+
+### Setup
+
+**1. Database.** Threads and shared conversations are the same table, so the existing one
+gains an owner:
+
+```sql
+alter table conversations
+  add column if not exists owner_id uuid references auth.users(id) on delete cascade;
+
+-- Personal threads have no share link, so this can no longer be required.
+alter table conversations alter column share_id drop not null;
+
+create index if not exists conversations_owner_idx on conversations (owner_id);
+```
+
+Row Level Security stays on with **no policies**, exactly as before. Nothing reaches the
+database except through this app's own `/api` routes.
+
+**2. Turn off email confirmation.** *Authentication → Sign In / Providers → Email* →
+disable **Confirm email**.
+
+**3. Enable Google.** *Authentication → Sign In / Providers → Google*. It needs an OAuth
+client from the [Google Cloud console](https://console.cloud.google.com/apis/credentials):
+create an **OAuth client ID** of type *Web application*, and give it the authorised
+redirect URI Supabase shows on that same page — it looks like
+`https://<project>.supabase.co/auth/v1/callback`. Paste the client ID and secret back into
+Supabase.
+
+**4. Add the public keys** to `.env.local`:
+
+| Variable | Where |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Same as `SUPABASE_URL` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Settings → API → **anon / public** key |
+
+These two are public by design. The anon key ships to the browser and can do exactly one
+thing: sign a person in or out. It reads and writes no table, because RLS is closed and no
+policy grants it anything. All data access happens server-side with the service-role key,
+which never leaves the server.
+
+Until both are set, the app runs unauthenticated and the sign-in page says so rather than
+locking you out of your own project.
+
+### What signing in changes
+
+- Threads sync to your account and appear on any device you sign in on.
+- Sharing attaches a link to the thread that already exists, rather than copying it.
+- Signing in on a device that already has local threads offers, once, to move them in.
+  Nothing moves without an answer — on a shared school computer, silently claiming whatever
+  is in the browser would attach someone else's work to your account.
+
 ## Personal and group tabs
 
 Tabs live in a left sidebar and come in two kinds:
 
-- **Personal** — stored only in this browser's localStorage. Nothing is uploaded.
-- **Group** — synced to Supabase and reachable at `/t/<shareId>`. Anyone with the link can read the thread **and
-  add their own follow-ups**.
+- **Personal** — private to your account, synced across your devices, reachable only by you.
+- **Group** — the same thread with a share link attached, reachable at `/t/<shareId>`. Anyone with the link can
+  read the thread **and add their own follow-ups**.
+
+Both live in the same table; sharing sets a column rather than making a copy. localStorage is still the working
+store on each device, so the app stays instant and survives a dropped connection, with the server as the durable
+copy.
 
 The pencil icon on any tab opens a dialog to rename it, or to turn a personal tab into a group tab later.
 Sharing offers **Copy link** and **Share by email** — the email button opens the student's own mail app with the
 link pre-filled via `mailto:`, so no email service, API key or domain verification is needed.
 
-### Supabase setup (optional)
+### Supabase setup
 
-Group tabs need one table. Create a free project at [supabase.com](https://supabase.com), then run this in the
-SQL editor:
+Create a free project at [supabase.com](https://supabase.com), then run this in the SQL editor. If you set this
+up before accounts existed, run the migration under **Accounts → Setup** instead of recreating the table.
 
 ```sql
 create table conversations (
   id          uuid primary key default gen_random_uuid(),
-  share_id    text unique not null,
+  owner_id    uuid references auth.users(id) on delete cascade,
+  share_id    text unique,
   title       text not null,
   style       text not null,
   scope       text not null,
@@ -80,15 +159,23 @@ create index conversations_share_id_idx on conversations (share_id);
 alter table conversations enable row level security;
 ```
 
-Leaving RLS on with **no policies** is deliberate. All access goes through this app's own `/api/share` routes
-using the `service_role` key, which bypasses RLS server-side and only ever looks a row up by its unguessable
-share id. No Supabase key of any kind is shipped to the browser.
+Leaving RLS on with **no policies** is deliberate. All data access goes through this app's own `/api` routes
+using the `service_role` key, which bypasses RLS server-side and filters every query by `owner_id`, or by an
+unguessable share id for a shared thread.
+
+The browser does hold the **anon** key, solely to sign people in and out. It reads and writes no table: with RLS
+on and no policies, an anon-key query against any table returns nothing. The `service_role` key never leaves the
+server.
+
+The consequence worth remembering: because `service_role` bypasses RLS, the `owner_id` filters in
+[src/lib/supabase.ts](src/lib/supabase.ts) are the only thing separating one person's threads from another's.
+There is no database-level backstop behind them.
 
 Then add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to `.env.local`.
 
 **Two things worth knowing before you share a link:**
 
-- The link *is* the password. There are no accounts, so anyone who receives or forwards it gets the same access.
+- The link *is* the password. Anyone who receives or forwards it gets the same access, signed in as themselves.
 - Anyone with the link can ask follow-ups, and those run against **your** Tavily and Gemini quota.
 
 ## Source scope
@@ -209,7 +296,7 @@ build.
 
 - **Share links use the deployed origin.** They are built from `window.location.origin`, so they point at
   your Vercel domain automatically with nothing to configure.
-- **Anyone holding a share link spends your API quota.** There are no accounts; the link is the credential.
+- **Anyone holding a share link spends your API quota.** They must be signed in, but any account will do — the link itself is the permission.
   Both free tiers are per-key and shared across every visitor.
 - **`maxDuration` is 120s** on the research route. Hobby permits up to 300s if you find follow-ups timing
   out under heavy rate limiting.

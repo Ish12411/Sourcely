@@ -43,7 +43,7 @@ const Composer = forwardRef<ComposerHandle, Props>(function Composer(
   return (
     // Matches the reading column, which widened once the sources rail became
     // an overlay instead of a third column.
-    <div style={{ width: "100%", maxWidth: 680 }}>
+    <div style={{ width: "100%", maxWidth: 744 }}>
       {/* The whole field lights up on focus, not just the inner textarea —
           the border is the control as far as the eye is concerned. */}
       <div
@@ -52,10 +52,10 @@ const Composer = forwardRef<ComposerHandle, Props>(function Composer(
           display: "flex",
           alignItems: "center",
           gap: 12,
-          padding: "12px 14px",
-          background: "var(--color-paper)",
-          border: "1px solid rgba(0,0,0,.13)",
-          borderRadius: 9,
+          padding: "13px 15px",
+          background: "var(--color-paper-raised)",
+          border: "1px solid var(--control-border)",
+          borderRadius: "var(--radius-control)",
         }}
       >
         <textarea
@@ -84,14 +84,14 @@ const Composer = forwardRef<ComposerHandle, Props>(function Composer(
             border: 0,
             outline: "none",
             background: "transparent",
-            font: "400 14px/1.4 var(--font-sans)",
+            font: "400 0.9375rem/1.45 var(--font-serif)",
             color: "var(--color-ink)",
           }}
         />
 
         {variant === "docked" && (
           <span
-            style={{ flex: "none", font: "400 10px/1 var(--font-mono)", color: "rgba(0,0,0,.32)" }}
+            style={{ flex: "none", font: "400 10px/1 var(--font-mono)", color: "var(--meta-dim)" }}
             title="Follow-ups are answered with the last four turns as context."
           >
             last 4 turns
@@ -102,17 +102,8 @@ const Composer = forwardRef<ComposerHandle, Props>(function Composer(
           type="button"
           onClick={() => submit()}
           disabled={busy || !draft.trim()}
-          style={{
-            flex: "none",
-            padding: "8px 14px",
-            background: "var(--color-teal)",
-            color: "#fff",
-            borderRadius: 6,
-            font: "500 12px/1 var(--font-sans)",
-            border: 0,
-            cursor: busy || !draft.trim() ? "default" : "pointer",
-            opacity: busy || !draft.trim() ? 0.45 : 1,
-          }}
+          className="btn-primary"
+          style={{ flex: "none" }}
         >
           <span key={busy ? "busy" : "idle"} className="label-swap">
             {busy ? "Reading…" : "Ask"}
@@ -134,9 +125,9 @@ const Composer = forwardRef<ComposerHandle, Props>(function Composer(
               title={s}
               style={{
                 padding: "5px 9px",
-                font: "400 11px/1.35 var(--font-sans)",
+                font: "400 var(--step-label)/1.35 var(--font-sans)",
                 color: "var(--body-secondary)",
-                background: "var(--color-paper)",
+                background: "transparent",
                 textAlign: "left",
                 maxWidth: 200,
                 overflow: "hidden",

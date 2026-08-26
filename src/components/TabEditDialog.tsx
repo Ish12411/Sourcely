@@ -78,7 +78,7 @@ export default function TabEditDialog({ tab, onClose, onRename, onShare, onDelet
         alignItems: "center",
         justifyContent: "center",
         padding: 16,
-        background: "rgba(0,0,0,.4)",
+        background: "var(--meta-dim)",
       }}
     >
       <div
@@ -88,8 +88,8 @@ export default function TabEditDialog({ tab, onClose, onRename, onShare, onDelet
           maxWidth: 420,
           padding: 22,
           background: "var(--color-paper)",
-          borderRadius: 10,
-          boxShadow: "0 12px 40px rgba(0,0,0,.18)",
+          borderRadius: "var(--radius-overlay)",
+          boxShadow: "0 12px 40px rgba(22,19,13,.2)",
         }}
       >
         <h2 style={{ margin: "0 0 16px", font: "400 20px/1.3 var(--font-serif)" }}>Rename thread</h2>
@@ -108,18 +108,18 @@ export default function TabEditDialog({ tab, onClose, onRename, onShare, onDelet
             padding: "12px 13px",
             background: "#fff",
             border: "1px solid var(--color-ink)",
-            borderRadius: 7,
+            borderRadius: "var(--radius-control)",
             font: "400 14px/1.3 var(--font-sans)",
             color: "var(--color-ink)",
             outline: "none",
           }}
         />
 
-        <div style={{ marginTop: 16, padding: 14, background: "var(--color-paper-sunk)", borderRadius: 8 }}>
+        <div style={{ marginTop: 16, padding: 14, background: "var(--color-paper-sunk)", borderRadius: "var(--radius-panel)" }}>
           <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ font: "500 13px/1.3 var(--font-sans)" }}>Make this a group thread</div>
-              <p style={{ margin: "5px 0 0", font: "400 11.5px/1.5 var(--font-mono)", color: "rgba(0,0,0,.5)" }}>
+              <p style={{ margin: "5px 0 0", font: "400 11.5px/1.5 var(--font-mono)", color: "var(--meta)" }}>
                 Syncs to a link. The link is the password — anyone who has it can read and ask more.
               </p>
             </div>
@@ -136,12 +136,12 @@ export default function TabEditDialog({ tab, onClose, onRename, onShare, onDelet
                 flex: "none",
                 width: 38,
                 height: 22,
-                borderRadius: 11,
+                borderRadius: 999,
                 border: 0,
                 padding: 3,
                 display: "flex",
                 justifyContent: "flex-start",
-                background: shareId ? "var(--color-teal)" : "rgba(0,0,0,.2)",
+                background: shareId ? "var(--color-ink)" : "rgba(22,19,13,.24)",
                 cursor: shareId || busy ? "default" : "pointer",
                 transition: "background var(--dur-fast) var(--ease-in-out)",
               }}
@@ -154,7 +154,7 @@ export default function TabEditDialog({ tab, onClose, onRename, onShare, onDelet
                   height: 16,
                   borderRadius: "50%",
                   background: "#fff",
-                  boxShadow: "0 1px 2px rgba(0,0,0,.2)",
+                  boxShadow: "0 1px 2px var(--shadow-soft)",
                   transition: "transform var(--dur) var(--ease-out)",
                   // 38px track - 3px padding either side - 16px knob = 16px travel.
                   transform: shareId ? "translateX(16px)" : "translateX(0)",
@@ -164,7 +164,7 @@ export default function TabEditDialog({ tab, onClose, onRename, onShare, onDelet
           </div>
 
           {busy && (
-            <p style={{ margin: "10px 0 0", font: "400 11.5px/1.5 var(--font-mono)", color: "rgba(0,0,0,.5)" }}>
+            <p style={{ margin: "10px 0 0", font: "400 11.5px/1.5 var(--font-mono)", color: "var(--meta)" }}>
               Creating link…
             </p>
           )}
@@ -177,7 +177,7 @@ export default function TabEditDialog({ tab, onClose, onRename, onShare, onDelet
                   minWidth: 180,
                   padding: "9px 10px",
                   background: "#fff",
-                  borderRadius: 6,
+                  borderRadius: "var(--radius-control)",
                   font: "400 11.5px/1.4 var(--font-mono)",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
@@ -217,7 +217,7 @@ export default function TabEditDialog({ tab, onClose, onRename, onShare, onDelet
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 18 }}>
           {confirmDelete ? (
             <>
-              <span style={{ font: "400 11.5px/1.4 var(--font-mono)", color: "rgba(0,0,0,.5)" }}>Delete thread?</span>
+              <span style={{ font: "400 11.5px/1.4 var(--font-mono)", color: "var(--meta)" }}>Delete thread?</span>
               <button
                 type="button"
                 onClick={onDelete}
@@ -283,7 +283,7 @@ export default function TabEditDialog({ tab, onClose, onRename, onShare, onDelet
               padding: "9px 16px",
               background: "var(--color-ink)",
               color: "var(--color-paper)",
-              borderRadius: 7,
+              borderRadius: "var(--radius-control)",
               font: "500 12px/1 var(--font-sans)",
               border: 0,
               cursor: "pointer",
