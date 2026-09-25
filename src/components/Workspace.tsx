@@ -241,6 +241,7 @@ export default function Workspace({ openShareId }: { openShareId?: string }) {
 
           <div
             ref={reading}
+            className="reading-area"
             style={{
               flex: 1,
               overflowY: "auto",
@@ -346,7 +347,7 @@ export default function Workspace({ openShareId }: { openShareId?: string }) {
 
           {turnCount > 0 && (
             <div
-              className="no-print"
+              className="no-print composer-dock"
               style={{
                 flex: "none",
                 borderTop: "1px solid var(--rule-soft)",

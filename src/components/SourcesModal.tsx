@@ -115,7 +115,7 @@ export default function SourcesModal({
 
   return (
     <div
-      className="backdrop-in no-print"
+      className="backdrop-in no-print sources-backdrop"
       role="dialog"
       aria-modal="true"
       aria-label="Sources and citations"
@@ -136,7 +136,7 @@ export default function SourcesModal({
     >
       <div
         ref={panel}
-        className="dialog-in"
+        className="dialog-in sources-panel"
         style={{
           // Two thirds of the viewport, centred, with clamps so it stays
           // usable on very small and very large screens.
@@ -153,6 +153,7 @@ export default function SourcesModal({
         }}
       >
         <header
+          className="sources-header"
           style={{
             flex: "none",
             padding: "18px 24px",
@@ -229,7 +230,7 @@ export default function SourcesModal({
           </div>
         </header>
 
-        <div ref={scroller} style={{ flex: 1, overflowY: "auto", padding: "20px 24px 28px" }}>
+        <div ref={scroller} className="sources-body" style={{ flex: 1, overflowY: "auto", padding: "20px 24px 28px" }}>
           {rail.length === 0 && (
             <p style={{ font: "400 13px/1.6 var(--font-sans)", color: "var(--body-secondary)" }}>
               Sources appear here as soon as the first answer lands.

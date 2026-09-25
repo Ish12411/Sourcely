@@ -75,7 +75,10 @@ const Composer = forwardRef<ComposerHandle, Props>(function Composer(
           placeholder={
             variant === "empty"
               ? "What caused the 1973 oil crisis?"
-              : "Ask a follow-up — “can I have more sources?”"
+              : // Short on purpose: the placeholder sizes this auto-growing field,
+                // and the long example wrapped it to two lines on a phone. The
+                // "more sources" prompt is offered as a chip right below anyway.
+                "Ask a follow-up…"
           }
           style={{
             flex: 1,
@@ -91,6 +94,7 @@ const Composer = forwardRef<ComposerHandle, Props>(function Composer(
 
         {variant === "docked" && (
           <span
+            className="composer-context-hint"
             style={{ flex: "none", font: "400 10px/1 var(--font-mono)", color: "var(--meta-dim)" }}
             title="Follow-ups are answered with the last four turns as context."
           >
@@ -112,7 +116,7 @@ const Composer = forwardRef<ComposerHandle, Props>(function Composer(
       </div>
 
       {suggestions.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+        <div className="composer-chips" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
           {suggestions.map((s) => (
             <button
               key={s}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient, isAuthConfigured } from "@/lib/supabase/client";
 
@@ -23,7 +23,7 @@ function humanise(message: string, mode: Mode): string {
     return "Passwords need to be at least 6 characters.";
   }
   if (m.includes("rate limit") || m.includes("over_email_send_rate_limit")) {
-    return "Too many sign-up emails have gone out in the last hour. Try Google instead, or wait an hour.";
+    return "Too many sign-up emails have gone out in the last hour. Wait an hour and try again, or use Google on the website.";
   }
   if (m.includes("email not confirmed")) {
     return "That account still needs confirming. Check your inbox for the confirmation link.";
@@ -47,6 +47,25 @@ export default function LoginForm() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const configured = isAuthConfigured();
+
+  /**
+   * True inside the Natively app shell. Google's OAuth policy forbids sign-in
+   * inside an embedded webview ("a developer must not direct a Google OAuth
+   * 2.0 authorization request to an embedded user-agent under the developer's
+   * control"), so in the app the button would open Google and dead-end on a
+   * blocked-request page. Hiding it is better than offering a button that
+   * cannot work.
+   *
+   * Detection mirrors Natively's own SDK: its browserInfo() checks the user
+   * agent for "Natively/iOS" or "Natively/Android", and treats the presence of
+   * a window.$agent global as a native app. Checked in an effect, because it
+   * reads `navigator` and would otherwise mismatch the server-rendered HTML.
+   */
+  const [inNativeApp, setInNativeApp] = useState(false);
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    setInNativeApp(/Natively\/(iOS|Android)/.test(ua) || typeof (window as { $agent?: unknown }).$agent !== "undefined");
+  }, []);
 
   async function withEmail(e: React.FormEvent) {
     e.preventDefault();
@@ -160,6 +179,8 @@ export default function LoginForm() {
           </div>
         )}
 
+        {!inNativeApp && (
+        <>
         <button
           type="button"
           onClick={withGoogle}
@@ -192,6 +213,8 @@ export default function LoginForm() {
           <span className="section-label">or</span>
           <span style={{ flex: 1, height: 1, background: "var(--rule)" }} />
         </div>
+        </>
+        )}
 
         <form onSubmit={withEmail} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <label style={{ display: "block" }}>

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Libre_Caslon_Display, Libre_Caslon_Text, Archivo, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -51,6 +51,28 @@ export const metadata: Metadata = {
   title: "Sourcely — research with citations you can trust",
   description:
     "Ask a question about history, science or any academic topic. Get a summary, key points, and every source cited in the style your teacher asked for.",
+  applicationName: "Sourcely",
+  // Read by iOS when the site runs full-screen, including inside the Natively
+  // app shell: no browser chrome, and the status bar sits over the page.
+  appleWebApp: { capable: true, title: "Sourcely", statusBarStyle: "default" },
+  formatDetection: { telephone: false, email: false, address: false },
+};
+
+/**
+ * `viewportFit: "cover"` is what lets the page extend under the notch and the
+ * home indicator. Without it iOS letterboxes the page and every
+ * env(safe-area-inset-*) reads as zero, so the insets in globals.css would
+ * silently do nothing.
+ *
+ * Zoom is deliberately left enabled. The usual fix for iOS zooming into a
+ * focused field is to disable pinch-zoom entirely, which fails WCAG. The real
+ * cause is any input under 16px, and globals.css fixes that directly.
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#f5f1e8",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

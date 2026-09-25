@@ -661,3 +661,126 @@ button:not(:disabled):active,
 .dropdown-option.is-selected.is-active {
   background: var(--mark-tint);
 }
+
+/* ------------------------------------------------------- native shell
+
+   Rules that make the page behave like an app when it runs inside a native
+   wrapper (Natively's WKWebView on iOS) or full-screen from the home screen.
+   Each one removes a specific tell that gives a wrapped website away. */
+
+:root {
+  /* Zero in an ordinary browser tab, real values inside the app. Requires
+     viewportFit: "cover" in layout.tsx, or these all read as zero. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+html,
+body {
+  /* The rubber-band bounce past the top and bottom of the page is the single
+     most recognisable sign of a web page pretending to be an app. Inner
+     scroll areas still bounce; only the document itself stops. */
+  overscroll-behavior: none;
+  /* Stops iOS inflating text sizes after a rotation. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* The grey flash iOS paints over any tapped element. */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Long-pressing interface chrome shouldn't raise the text-selection callout.
+   Prose, citations and inputs keep normal selection — copying a citation by
+   hand is a legitimate thing to do. */
+button,
+[role="button"],
+[role="option"],
+.app-header,
+.dropdown-trigger {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* iOS zooms the whole page into any focused field smaller than 16px and
+   doesn't zoom back out. Keyed to touch input rather than width, because an
+   iPad at desktop width zooms just the same. */
+@media (hover: none) and (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+.app-header {
+  padding-top: calc(15px + var(--safe-top)) !important;
+}
+
+.composer-dock {
+  padding-bottom: calc(16px + var(--safe-bottom)) !important;
+}
+
+@media (max-width: 40rem) {
+  .reading-area {
+    padding-left: 18px !important;
+    padding-right: 18px !important;
+  }
+  .composer-dock {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+
+  /* On a phone the sources panel becomes a full-screen sheet. At two-thirds
+     of a 390px screen it was 260px wide — too narrow for a citation. */
+  .sources-backdrop {
+    padding: 0 !important;
+  }
+  .sources-panel {
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    border-radius: 0 !important;
+  }
+  .sources-header {
+    padding-top: calc(14px + var(--safe-top)) !important;
+    padding-left: 18px !important;
+    padding-right: 18px !important;
+  }
+  .sources-body {
+    padding-left: 18px !important;
+    padding-right: 18px !important;
+    padding-bottom: calc(28px + var(--safe-bottom)) !important;
+  }
+}
+
+/* On a phone the composer was a fifth of the screen: the context hint took
+   72px from a 181px field so the placeholder wrapped to two lines, and the
+   three suggestion chips wrapped to two rows. The hint is dropped (it is a
+   tooltip-grade detail) and the chips become one row that scrolls sideways. */
+@media (max-width: 40rem) {
+  .composer-context-hint {
+    display: none;
+  }
+  .composer-chips {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-left: -14px;
+    margin-right: -14px;
+    padding: 0 14px;
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+  }
+  .composer-chips::-webkit-scrollbar {
+    display: none;
+  }
+  .composer-chips > button {
+    flex: none;
+  }
+}
