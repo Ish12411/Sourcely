@@ -44,7 +44,11 @@ export default function LoginForm() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState<null | "email" | "google">(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  // After an in-app account deletion the dialog lands here with ?deleted=1;
+  // saying so plainly confirms the deletion actually went through.
+  const [notice, setNotice] = useState<string | null>(
+    params.get("deleted") === "1" ? "Your account and all its threads have been deleted." : null
+  );
 
   const configured = isAuthConfigured();
 
@@ -319,6 +323,13 @@ export default function LoginForm() {
           >
             {mode === "signin" ? "Create one" : "Sign in"}
           </button>
+        </p>
+
+        <p style={{ margin: "28px 0 0", font: "400 var(--step-label)/1.5 var(--font-sans)", color: "var(--meta)" }}>
+          <a href="/privacy" className="ink-action" style={{ fontSize: "inherit" }}>
+            Privacy
+          </a>
+          {" — what's stored, who handles it, and how to delete it."}
         </p>
       </div>
     </main>

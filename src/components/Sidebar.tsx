@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import DeleteAccountDialog from "./DeleteAccountDialog";
 import type { Tab } from "@/lib/types";
 
 /** Two-character chip for the collapsed spine: "1973 oil crisis" -> "73". */
@@ -48,6 +50,7 @@ export default function Sidebar({
 }: Props) {
   const personal = tabs.filter((t) => t.kind === "personal");
   const group = tabs.filter((t) => t.kind === "group");
+  const [deleting, setDeleting] = useState(false);
 
   const shell: React.CSSProperties = {
     width: collapsed ? 48 : 228,
@@ -162,7 +165,7 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`no-print ${drawerOpen ? "" : "-translate-x-full"} fixed inset-y-0 left-0 z-30 md:static md:translate-x-0`}
+        className={`no-print app-sidebar ${drawerOpen ? "" : "-translate-x-full"} fixed inset-y-0 left-0 z-30 md:static md:translate-x-0`}
         style={{ ...shell, paddingTop: 18 }}
       >
         <div style={{ padding: "0 18px 18px", font: "400 1.5rem/1 var(--font-display)", letterSpacing: "-.015em" }}>
@@ -242,6 +245,23 @@ export default function Sidebar({
             </form>
           </div>
         )}
+
+        {/* Kept visible rather than buried in a menu: App Review looks for it,
+            and a person looking to leave shouldn't have to hunt. */}
+        {user && (
+          <div style={{ padding: "0 16px 12px" }}>
+            <button
+              type="button"
+              className="ink-action"
+              onClick={() => setDeleting(true)}
+              style={{ color: "var(--meta)", fontSize: "var(--step-label)" }}
+            >
+              Delete account
+            </button>
+          </div>
+        )}
+
+        {deleting && user && <DeleteAccountDialog email={user.email} onClose={() => setDeleting(false)} />}
 
         <button
           type="button"

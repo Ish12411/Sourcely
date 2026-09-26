@@ -784,3 +784,11 @@ button,
     flex: none;
   }
 }
+
+/* The expanded sidebar is a fixed drawer on phones, pinned to the top of the
+   screen — under the status bar and notch — and running down to the home
+   indicator. Same insets as the header and composer. */
+.app-sidebar {
+  padding-top: calc(18px + var(--safe-top)) !important;
+  padding-bottom: var(--safe-bottom);
+}

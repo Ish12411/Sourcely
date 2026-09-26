@@ -255,3 +255,43 @@ export async function shareOwnedThread(id: string, ownerId: string): Promise<str
   const rows = (await res.json()) as OwnedRow[];
   return rows.length ? rows[0].share_id : null;
 }
+
+/* ---------------------------------------------------------- account
+
+   Apple requires any app with account creation to let people delete their
+   account from inside the app, and to remove "any data associated with the
+   account", explicitly including content shared with others. */
+
+/**
+ * Remove every thread a person owns — private and shared alike. Returns how
+ * many rows went, so the caller can report it.
+ *
+ * The owner_id foreign key is declared ON DELETE CASCADE, so deleting the auth
+ * user would take these rows with it anyway. This is done explicitly and first
+ * regardless: it does not depend on the migration having been run exactly as
+ * written, and if the later auth deletion fails, the person's data is already
+ * gone — the order that errs on the side of their privacy.
+ */
+export async function deleteAllThreadsFor(ownerId: string): Promise<number> {
+  const res = await rest(`${TABLE}?owner_id=eq.${encodeURIComponent(ownerId)}`, {
+    method: "DELETE",
+    prefer: "return=representation",
+  });
+  const rows = (await res.json()) as unknown[];
+  return rows.length;
+}
+
+/** Delete the Supabase auth user. Service-role only; never reachable from a browser. */
+export async function deleteAuthUser(userId: string): Promise<void> {
+  const { url, key } = config();
+  const res = await fetch(`${url}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+    method: "DELETE",
+    headers: { apikey: key, Authorization: `Bearer ${key}` },
+    cache: "no-store",
+  });
+  // 404 means already gone, which is the state we wanted.
+  if (!res.ok && res.status !== 404) {
+    const detail = await res.text().catch(() => "");
+    throw new ShareError(`Couldn't delete the account (${res.status}). ${detail.slice(0, 160)}`, 502);
+  }
+}
