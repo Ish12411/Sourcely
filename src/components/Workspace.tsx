@@ -146,7 +146,7 @@ export default function Workspace({ openShareId }: { openShareId?: string }) {
   const showRail = turnCount > 0;
 
   return (
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "var(--color-paper)" }}>
+    <div className="app-shell" style={{ display: "flex", height: "100vh", overflow: "hidden", background: "var(--color-paper)" }}>
       <Sidebar
         tabs={tabs}
         activeId={active.id}

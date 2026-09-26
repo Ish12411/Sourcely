@@ -30,7 +30,8 @@ export default function PrivacyPage() {
         style={{
           maxWidth: 680,
           margin: "0 auto",
-          padding: "calc(48px + var(--safe-top)) 22px calc(64px + var(--safe-bottom))",
+          padding:
+            "calc(48px + var(--safe-top)) max(22px, var(--safe-right)) calc(64px + var(--safe-bottom)) max(22px, var(--safe-left))",
         }}
       >
         <a href="/" className="ink-action" style={{ fontSize: "var(--step-label)" }}>
