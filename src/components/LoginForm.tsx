@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createClient, isAuthConfigured } from "@/lib/supabase/client";
 
 type Mode = "signin" | "signup" | "forgot";
@@ -42,10 +42,18 @@ function humanise(message: string, mode: Mode): string {
   return message || (mode === "signup" ? "Couldn't create that account." : "Couldn't sign in.");
 }
 
-export default function LoginForm() {
+export default function LoginForm({
+  next,
+  initialError,
+  deleted,
+  nativeApp,
+}: {
+  next: string;
+  initialError: string | null;
+  deleted: boolean;
+  nativeApp: boolean;
+}) {
   const router = useRouter();
-  const params = useSearchParams();
-  const next = params.get("next") || "/";
 
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -53,11 +61,11 @@ export default function LoginForm() {
   const [busy, setBusy] = useState<null | "email" | "google">(null);
   // /auth/callback and /auth/confirm both send failures back as ?error=...
   // Nothing read it before, so an expired reset link landed here silently.
-  const [error, setError] = useState<string | null>(params.get("error"));
+  const [error, setError] = useState<string | null>(initialError);
   // After an in-app account deletion the dialog lands here with ?deleted=1;
   // saying so plainly confirms the deletion actually went through.
   const [notice, setNotice] = useState<string | null>(
-    params.get("deleted") === "1" ? "Your account and all its threads have been deleted." : null
+    deleted ? "Your account and all its threads have been deleted." : null
   );
 
   const configured = isAuthConfigured();
@@ -72,13 +80,13 @@ export default function LoginForm() {
    *
    * Detection mirrors Natively's own SDK: its browserInfo() checks the user
    * agent for "Natively/iOS" or "Natively/Android", and treats the presence of
-   * a window.$agent global as a native app. Checked in an effect, because it
-   * reads `navigator` and would otherwise mismatch the server-rendered HTML.
+   * a window.$agent global as a native app. The user-agent half is decided
+   * on the server (see app/login/page.tsx) so the button is never drawn in the
+   * app at all; the $agent half can only be seen here, so it backs that up.
    */
-  const [inNativeApp, setInNativeApp] = useState(false);
+  const [inNativeApp, setInNativeApp] = useState(nativeApp);
   useEffect(() => {
-    const ua = navigator.userAgent;
-    setInNativeApp(/Natively\/(iOS|Android)/.test(ua) || typeof (window as { $agent?: unknown }).$agent !== "undefined");
+    if (typeof (window as { $agent?: unknown }).$agent !== "undefined") setInNativeApp(true);
   }, []);
 
   async function withEmail(e: React.FormEvent) {

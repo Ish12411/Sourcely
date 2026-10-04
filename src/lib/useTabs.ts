@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DEFAULT_STYLE } from "./citations";
+import { SIDEBAR_COOKIE } from "./sidebarCookie";
 import type {
   HistoryTurn,
   ResearchResult,
@@ -134,6 +135,13 @@ export function useTabs() {
     }
   }, [tabs, activeId, sidebarCollapsed, hydrated]);
 
+  // The server can't read localStorage, so it can't know which sidebar to draw
+  // in the placeholder frame. A cookie it *can* read; see SIDEBAR_COOKIE.
+  useEffect(() => {
+    if (!hydrated) return;
+    document.cookie = `${SIDEBAR_COOKIE}=${sidebarCollapsed ? "1" : "0"}; path=/; max-age=31536000; samesite=lax`;
+  }, [sidebarCollapsed, hydrated]);
+
   /* ------------------------------------------------------------ account */
 
   const [user, setUser] = useState<{ id: string; email: string | null } | null>(null);
@@ -150,16 +158,22 @@ export function useTabs() {
 
     (async () => {
       try {
-        const meRes = await fetch("/api/me");
-        const me = await meRes.json().catch(() => ({}));
-        if (cancelled) return;
-        setUser(me?.user ?? null);
-        if (!me?.user) return;
-
+        // One request for both who you are and your threads (see GET
+        // /api/threads). A 401 is simply "not signed in".
         const res = await fetch("/api/threads");
+        if (cancelled) return;
+        if (res.status === 401) {
+          setUser(null);
+          return;
+        }
         if (!res.ok) return;
-        const { threads } = (await res.json()) as { threads: ServerThread[] };
-        if (cancelled || !Array.isArray(threads)) return;
+        const { user: me, threads } = (await res.json()) as {
+          user?: { id: string; email: string | null };
+          threads: ServerThread[];
+        };
+        if (cancelled) return;
+        setUser(me ?? null);
+        if (!me || !Array.isArray(threads)) return;
 
         const serverIds = new Set(threads.map((t) => t.id));
         const local = tabsRef.current;

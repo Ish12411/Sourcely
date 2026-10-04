@@ -21,13 +21,18 @@ function handle(err: unknown) {
   return NextResponse.json({ error: "Couldn't reach your threads." }, { status: 500 });
 }
 
-/** Every thread belonging to the signed-in person. */
+/**
+ * Every thread belonging to the signed-in person, plus who that person is.
+ * The user rides along so the app can start up on this one request instead of
+ * asking /api/me first and then coming here — each is a sign-in check against
+ * Supabase, and on launch they were back to back.
+ */
 export async function GET() {
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
-    return NextResponse.json({ threads: await listThreads(user.id) });
+    return NextResponse.json({ user, threads: await listThreads(user.id) });
   } catch (err) {
     return handle(err);
   }

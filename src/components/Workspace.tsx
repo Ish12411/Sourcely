@@ -20,7 +20,14 @@ const ALWAYS_OFFERED = ["Can I have more sources?", "Explain this more simply"];
 /** Matches MAX_SOURCES on the server; only used for the loading copy. */
 const MAX_SOURCES = 8;
 
-export default function Workspace({ openShareId }: { openShareId?: string }) {
+export default function Workspace({
+  openShareId,
+  sidebarCollapsedHint = false,
+}: {
+  openShareId?: string;
+  /** From the SIDEBAR_COOKIE, so the placeholder frame matches before localStorage is read. */
+  sidebarCollapsedHint?: boolean;
+}) {
   const {
     tabs,
     active,
@@ -126,7 +133,7 @@ export default function Workspace({ openShareId }: { openShareId?: string }) {
   }, []);
 
   if (!hydrated || !active) {
-    return <div style={{ height: "100vh", background: "var(--color-paper)" }} />;
+    return <AppFrame collapsed={sidebarCollapsedHint} />;
   }
 
   const busy = active.turns.some((t) => t.status === "loading");
@@ -403,6 +410,83 @@ export default function Workspace({ openShareId }: { openShareId?: string }) {
  * claiming whatever is in the browser would attach someone else's work to this
  * account.
  */
+/**
+ * What the server sends before the threads are known. It used to be an empty
+ * beige page, which on a phone read as a blank screen for as long as the
+ * JavaScript took to arrive. This is the app's own frame — sidebar, header —
+ * at exactly the sizes of the real ones, so when the content lands nothing
+ * moves; it just fills in. No shimmer or spinner: on a fast load those flash
+ * for a frame and look worse than nothing.
+ */
+function AppFrame({ collapsed }: { collapsed: boolean }) {
+  const mark = (size: string, supSize: string, label: string) => (
+    <span style={{ font: `400 ${size}/1 var(--font-display)`, letterSpacing: "-.015em" }}>
+      {label}
+      <sup style={{ font: `500 ${supSize}/1 var(--font-mono)`, color: "var(--color-mark)", verticalAlign: "super" }}>
+        1
+      </sup>
+    </span>
+  );
+
+  return (
+    <div
+      className="app-shell"
+      aria-busy="true"
+      style={{ display: "flex", height: "100vh", overflow: "hidden", background: "var(--color-paper)" }}
+    >
+      {/* Mirrors Sidebar: the collapsed spine shows at every width, the full
+          sidebar only from md up (below that it is an off-screen drawer). */}
+      <aside
+        className={`no-print ${collapsed ? "flex" : "app-sidebar hidden md:flex"}`}
+        style={{
+          width: collapsed ? 48 : 228,
+          flex: "none",
+          flexDirection: "column",
+          alignItems: collapsed ? "center" : undefined,
+          padding: collapsed ? "16px 0 12px" : undefined,
+          paddingTop: collapsed ? undefined : 18,
+          background: "var(--color-paper-sunk)",
+          borderRight: "1px solid var(--rule)",
+        }}
+      >
+        {collapsed ? (
+          mark("1.0625rem", "8px", "S")
+        ) : (
+          <div style={{ padding: "0 18px 18px" }}>{mark("1.5rem", "10px", "Sourcely")}</div>
+        )}
+      </aside>
+
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <header
+          className="no-print app-header"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "16px 34px",
+            borderBottom: "1px solid var(--rule)",
+            flex: "none",
+          }}
+        >
+          <span className="md:hidden" aria-hidden="true" style={{ font: "400 14px/1 var(--font-mono)" }}>
+            ☰
+          </span>
+          <span style={{ flex: 1 }} />
+          {/* Invisible, but holds the header at the height the real Share
+              button gives it, so the line under the header doesn't jump. */}
+          <span
+            aria-hidden="true"
+            className="outlined"
+            style={{ visibility: "hidden", padding: "7px 12px", font: "500 11.5px/1 var(--font-sans)" }}
+          >
+            Share
+          </span>
+        </header>
+      </div>
+    </div>
+  );
+}
+
 function MigrationPrompt({
   count,
   onMove,
