@@ -65,95 +65,104 @@ export default function Sidebar({
     // and costs a reflow on every frame of it.
   };
 
-  if (collapsed) {
-    return (
-      <aside className="no-print" style={{ ...shell, alignItems: "center", padding: "16px 0 12px", gap: 14 }}>
-        <span style={{ font: "400 1.0625rem/1 var(--font-display)" }}>
-          S
-          <sup style={{ font: "500 8px/1 var(--font-mono)", color: "var(--color-mark)", verticalAlign: "super" }}>
-            1
-          </sup>
-        </span>
+  // On a phone the sidebar is only ever the slide-out drawer opened from the
+  // header's ☰. The collapsed spine used to show there too: a 48px strip of
+  // two-letter chips eating an eighth of the screen, whose » button "expanded"
+  // the sidebar straight into the closed, off-screen drawer — so tapping it
+  // made the sidebar vanish. Collapsing is a desktop preference; below md the
+  // spine is hidden and the drawer is rendered instead.
+  const spine = collapsed ? (
+    <aside
+      className="no-print hidden md:flex"
+      style={{ ...shell, display: undefined, alignItems: "center", padding: "16px 0 12px", gap: 14 }}
+    >
+      <span style={{ font: "400 1.0625rem/1 var(--font-display)" }}>
+        S
+        <sup style={{ font: "500 8px/1 var(--font-mono)", color: "var(--color-mark)", verticalAlign: "super" }}>
+          1
+        </sup>
+      </span>
 
-        <button
-          type="button"
-          onClick={onAdd}
-          aria-label="New thread"
-          title="New thread (N)"
-          style={{
-            width: 24,
-            height: 24,
-            background: "var(--color-ink)",
-            color: "var(--color-paper)",
-            borderRadius: "var(--radius-control)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            font: "400 14px/1 var(--font-mono)",
-            border: 0,
-            cursor: "pointer",
-          }}
-        >
-          +
-        </button>
+      <button
+        type="button"
+        onClick={onAdd}
+        aria-label="New thread"
+        title="New thread (N)"
+        style={{
+          width: 24,
+          height: 24,
+          background: "var(--color-ink)",
+          color: "var(--color-paper)",
+          borderRadius: "var(--radius-control)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          font: "400 14px/1 var(--font-mono)",
+          border: 0,
+          cursor: "pointer",
+        }}
+      >
+        +
+      </button>
 
-        {/*
-          The spine keeps the expanded sidebar's ordering: personal above,
-          group below, separated by a rule. Collapsed, the chips carry no
-          section headings, so grouping is the only thing left telling you
-          which kind you are looking at — interleaving them loses it entirely.
-        */}
-        <div
-          className="no-scrollbar"
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 7,
-            alignItems: "center",
-            paddingTop: 4,
-            flex: 1,
-            width: "100%",
-            overflowY: "auto",
-          }}
-        >
-          {personal.map((tab) => (
-            <SpineChip key={tab.id} tab={tab} active={tab.id === activeId} onSelect={onSelect} />
-          ))}
+      {/*
+        The spine keeps the expanded sidebar's ordering: personal above,
+        group below, separated by a rule. Collapsed, the chips carry no
+        section headings, so grouping is the only thing left telling you
+        which kind you are looking at — interleaving them loses it entirely.
+      */}
+      <div
+        className="no-scrollbar"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 7,
+          alignItems: "center",
+          paddingTop: 4,
+          flex: 1,
+          width: "100%",
+          overflowY: "auto",
+        }}
+      >
+        {personal.map((tab) => (
+          <SpineChip key={tab.id} tab={tab} active={tab.id === activeId} onSelect={onSelect} />
+        ))}
 
-          {personal.length > 0 && group.length > 0 && (
-            <span
-              aria-hidden="true"
-              style={{ width: 16, height: 1, background: "var(--rule)", margin: "3px 0", flex: "none" }}
-            />
-          )}
+        {personal.length > 0 && group.length > 0 && (
+          <span
+            aria-hidden="true"
+            style={{ width: 16, height: 1, background: "var(--rule)", margin: "3px 0", flex: "none" }}
+          />
+        )}
 
-          {group.map((tab) => (
-            <SpineChip key={tab.id} tab={tab} active={tab.id === activeId} onSelect={onSelect} />
-          ))}
-        </div>
+        {group.map((tab) => (
+          <SpineChip key={tab.id} tab={tab} active={tab.id === activeId} onSelect={onSelect} />
+        ))}
+      </div>
 
-        <button
-          type="button"
-          onClick={onToggleCollapsed}
-          aria-label="Expand sidebar"
-          title="Expand (Ctrl+\)"
-          style={{
-            marginTop: "auto",
-            font: "400 12px/1 var(--font-mono)",
-            color: "var(--meta)",
-            background: "none",
-            border: 0,
-            cursor: "pointer",
-          }}
-        >
-          »
-        </button>
-      </aside>
-    );
-  }
+      <button
+        type="button"
+        onClick={onToggleCollapsed}
+        aria-label="Expand sidebar"
+        title="Expand (Ctrl+\)"
+        style={{
+          marginTop: "auto",
+          font: "400 12px/1 var(--font-mono)",
+          color: "var(--meta)",
+          background: "none",
+          border: 0,
+          cursor: "pointer",
+        }}
+      >
+        »
+      </button>
+    </aside>
+  ) : null;
 
   return (
     <>
+      {spine}
+
       {drawerOpen && (
         <button
           type="button"
@@ -165,14 +174,37 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`no-print app-sidebar ${drawerOpen ? "" : "-translate-x-full"} fixed inset-y-0 left-0 z-30 md:static md:translate-x-0`}
-        style={{ ...shell, paddingTop: 18 }}
+        className={`no-print app-sidebar flex ${drawerOpen ? "" : "-translate-x-full"} fixed inset-y-0 left-0 z-30 transition-transform duration-200 ease-out md:transition-none ${
+          collapsed ? "md:hidden" : "md:static md:translate-x-0"
+        }`}
+        // display comes from the classes: an inline display would beat md:hidden.
+        style={{ ...shell, display: undefined, width: 228, paddingTop: 18 }}
       >
-        <div style={{ padding: "0 18px 18px", font: "400 1.5rem/1 var(--font-display)", letterSpacing: "-.015em" }}>
-          Sourcely
-          <sup style={{ font: "500 10px/1 var(--font-mono)", color: "var(--color-mark)", verticalAlign: "super" }}>
-            1
-          </sup>
+        <div style={{ display: "flex", alignItems: "center", padding: "0 10px 18px 18px" }}>
+          <span style={{ font: "400 1.5rem/1 var(--font-display)", letterSpacing: "-.015em" }}>
+            Sourcely
+            <sup style={{ font: "500 10px/1 var(--font-mono)", color: "var(--color-mark)", verticalAlign: "super" }}>
+              1
+            </sup>
+          </span>
+          <button
+            type="button"
+            onClick={onCloseDrawer}
+            aria-label="Close sidebar"
+            className="md:hidden"
+            style={{
+              marginLeft: "auto",
+              width: 40,
+              height: 40,
+              background: "none",
+              border: 0,
+              cursor: "pointer",
+              font: "400 15px/1 var(--font-mono)",
+              color: "var(--meta)",
+            }}
+          >
+            ✕
+          </button>
         </div>
 
         <div style={{ padding: "0 12px 16px" }}>
@@ -266,8 +298,8 @@ export default function Sidebar({
         <button
           type="button"
           onClick={onToggleCollapsed}
+          className="hidden md:flex"
           style={{
-            display: "flex",
             alignItems: "center",
             gap: 8,
             padding: "12px 16px",
@@ -321,7 +353,7 @@ function TabSection({
           return (
             <div
               key={tab.id}
-              className="group"
+              className="group sidebar-row"
               style={{
                 display: "flex",
                 alignItems: "center",

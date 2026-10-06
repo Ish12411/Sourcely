@@ -95,6 +95,33 @@ export default function Workspace({
     }
   }, [turnCount]);
 
+  // Rotating the phone left the thread blank in the Natively app until it was
+  // scrolled: iOS WebKit sometimes doesn't repaint a scrolling container whose
+  // width changes under it. Briefly promoting it to its own layer forces the
+  // repaint. Width only — the keyboard changes height, and that's fine.
+  useEffect(() => {
+    let lastWidth = window.innerWidth;
+    let frame = 0;
+    function onResize() {
+      if (window.innerWidth === lastWidth) return;
+      lastWidth = window.innerWidth;
+      const el = reading.current;
+      if (!el) return;
+      cancelAnimationFrame(frame);
+      el.style.transform = "translateZ(0)";
+      frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => {
+          el.style.transform = "";
+        });
+      });
+    }
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+
   // ⌘\ / Ctrl+\ collapses the sidebar; N starts a new thread.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -187,12 +214,24 @@ export default function Workspace({
               flex: "none",
             }}
           >
+            {/* 40px square, pulled left by the extra width, so the glyph stays
+                where it was but a thumb can actually hit it. */}
             <button
               type="button"
               onClick={() => setDrawerOpen(true)}
               className="md:hidden"
               aria-label="Open sidebar"
-              style={{ background: "none", border: 0, cursor: "pointer", font: "400 14px/1 var(--font-mono)" }}
+              aria-expanded={drawerOpen}
+              style={{
+                flex: "none",
+                width: 40,
+                height: 40,
+                margin: "-10px -6px -10px -13px",
+                background: "none",
+                border: 0,
+                cursor: "pointer",
+                font: "400 16px/1 var(--font-mono)",
+              }}
             >
               ☰
             </button>
@@ -221,7 +260,9 @@ export default function Workspace({
             </span>
 
             <span style={{ display: "flex", gap: 8, flex: "none" }}>
-              {showRail && (
+              {/* Hidden until there is at least one source: "Sources 0" while
+                  the first answer loads opened an empty panel. */}
+              {rail.length > 0 && (
                 <button
                   type="button"
                   onClick={() => {
@@ -434,10 +475,10 @@ function AppFrame({ collapsed }: { collapsed: boolean }) {
       aria-busy="true"
       style={{ display: "flex", height: "100vh", overflow: "hidden", background: "var(--color-paper)" }}
     >
-      {/* Mirrors Sidebar: the collapsed spine shows at every width, the full
-          sidebar only from md up (below that it is an off-screen drawer). */}
+      {/* Mirrors Sidebar: either form shows only from md up; below that the
+          sidebar is an off-screen drawer. */}
       <aside
-        className={`no-print ${collapsed ? "flex" : "app-sidebar hidden md:flex"}`}
+        className={`no-print ${collapsed ? "hidden md:flex" : "app-sidebar hidden md:flex"}`}
         style={{
           width: collapsed ? 48 : 228,
           flex: "none",
@@ -468,7 +509,19 @@ function AppFrame({ collapsed }: { collapsed: boolean }) {
             flex: "none",
           }}
         >
-          <span className="md:hidden" aria-hidden="true" style={{ font: "400 14px/1 var(--font-mono)" }}>
+          <span
+            className="md:hidden"
+            aria-hidden="true"
+            style={{
+              flex: "none",
+              width: 40,
+              height: 40,
+              margin: "-10px -6px -10px -13px",
+              // No inline display: it would override md:hidden.
+              textAlign: "center",
+              font: "400 16px/40px var(--font-mono)",
+            }}
+          >
             ☰
           </span>
           <span style={{ flex: 1 }} />

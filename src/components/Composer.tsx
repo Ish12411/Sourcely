@@ -73,12 +73,11 @@ const Composer = forwardRef<ComposerHandle, Props>(function Composer(
           disabled={busy}
           aria-label="Research question"
           placeholder={
-            variant === "empty"
-              ? "What caused the 1973 oil crisis?"
-              : // Short on purpose: the placeholder sizes this auto-growing field,
-                // and the long example wrapped it to two lines on a phone. The
-                // "more sources" prompt is offered as a chip right below anyway.
-                "Ask a follow-up…"
+            // Both short on purpose: the placeholder sizes this auto-growing
+            // field, and a full example question was cut off mid-word on a
+            // phone ("What caused the 1973 oil"). The examples are offered as
+            // chips right below anyway.
+            variant === "empty" ? "Ask a research question…" : "Ask a follow-up…"
           }
           style={{
             flex: 1,

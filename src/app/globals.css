@@ -734,9 +734,13 @@ button,
     padding-left: 14px !important;
     padding-right: 14px !important;
   }
+}
 
-  /* On a phone the sources panel becomes a full-screen sheet. At two-thirds
-     of a 390px screen it was 260px wide — too narrow for a citation. */
+/* On a phone the sources panel becomes a full-screen sheet. At two-thirds
+   of a 390px screen it was 260px wide — too narrow for a citation. A phone
+   turned sideways gets the same: two-thirds of a 440px-tall screen left the
+   citations a 290px letterbox. Side padding clears a landscape notch. */
+@media (max-width: 40rem), (max-height: 31.25rem) {
   .sources-backdrop {
     padding: 0 !important;
   }
@@ -749,12 +753,12 @@ button,
   }
   .sources-header {
     padding-top: calc(14px + var(--safe-top)) !important;
-    padding-left: 18px !important;
-    padding-right: 18px !important;
+    padding-left: max(18px, var(--safe-left)) !important;
+    padding-right: max(18px, var(--safe-right)) !important;
   }
   .sources-body {
-    padding-left: 18px !important;
-    padding-right: 18px !important;
+    padding-left: max(18px, var(--safe-left)) !important;
+    padding-right: max(18px, var(--safe-right)) !important;
     padding-bottom: calc(28px + var(--safe-bottom)) !important;
   }
 }
@@ -762,8 +766,9 @@ button,
 /* On a phone the composer was a fifth of the screen: the context hint took
    72px from a 181px field so the placeholder wrapped to two lines, and the
    three suggestion chips wrapped to two rows. The hint is dropped (it is a
-   tooltip-grade detail) and the chips become one row that scrolls sideways. */
-@media (max-width: 40rem) {
+   tooltip-grade detail) and the chips become one row that scrolls sideways.
+   Same for a phone in landscape, where the screen is only ~440px tall. */
+@media (max-width: 40rem), (max-height: 31.25rem) {
   .composer-context-hint {
     display: none;
   }
@@ -803,4 +808,24 @@ button,
   padding-left: var(--safe-left);
   padding-right: var(--safe-right);
   box-sizing: border-box;
+}
+
+/* Landscape phone: the docked composer took a third of a 440px-tall screen. */
+@media (max-height: 31.25rem) {
+  .composer-dock {
+    padding-top: 10px !important;
+    padding-bottom: calc(10px + var(--safe-bottom)) !important;
+  }
+  .app-header {
+    padding-top: calc(10px + var(--safe-top)) !important;
+    padding-bottom: 10px !important;
+  }
+}
+
+/* Touch screens: sidebar rows sized for a thumb, not a cursor. */
+@media (hover: none) and (pointer: coarse) {
+  .sidebar-row {
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+  }
 }

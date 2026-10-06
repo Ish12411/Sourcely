@@ -177,9 +177,14 @@ export default function SourcesModal({
               aria-label="Close sources"
               autoFocus
               style={{
+                // 40px to hit with a thumb; the negative margin keeps the
+                // header the height the 28px button gave it.
                 marginLeft: "auto",
-                width: 28,
-                height: 28,
+                marginTop: -6,
+                marginBottom: -6,
+                marginRight: -8,
+                width: 40,
+                height: 40,
                 borderRadius: "var(--radius-control)",
                 border: 0,
                 background: "transparent",

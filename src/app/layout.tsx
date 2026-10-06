@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { NATIVE_INSETS_SCRIPT } from "@/lib/nativeInsets";
 import { Libre_Caslon_Display, Libre_Caslon_Text, Archivo, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -80,7 +81,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       className={`${caslonDisplay.variable} ${caslonText.variable} ${archivo.variable} ${jetbrains.variable}`}
+      // The inline script below adds a class and inset variables to <html>
+      // inside the Natively app before React hydrates.
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: NATIVE_INSETS_SCRIPT }} />
+      </head>
       <body>{children}</body>
     </html>
   );
