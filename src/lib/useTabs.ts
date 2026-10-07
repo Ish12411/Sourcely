@@ -5,6 +5,7 @@ import { DEFAULT_STYLE } from "./citations";
 import { SIDEBAR_COOKIE } from "./sidebarCookie";
 import type {
   HistoryTurn,
+  ResearchProgress,
   ResearchResult,
   Scope,
   SharedConversation,
@@ -100,6 +101,59 @@ function load(): Persisted | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Read a /api/research response. Streamed (NDJSON) responses report progress
+ * line by line and end with a `result` line carrying the status and body the
+ * plain JSON response would have had. A plain JSON response — the request
+ * failed validation before streaming began, or came from an older server — is
+ * read as before.
+ */
+async function readResearch(
+  res: Response,
+  onProgress: (progress: ResearchProgress) => void
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<{ status: number; data: any }> {
+  if (!res.headers.get("content-type")?.includes("application/x-ndjson") || !res.body) {
+    return { status: res.status, data: await res.json().catch(() => ({})) };
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffered = "";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let result: { status: number; data: any } | null = null;
+
+  const handle = (line: string) => {
+    if (!line.trim()) return;
+    try {
+      const msg = JSON.parse(line);
+      if (msg.type === "progress" && msg.stage === "searching") onProgress({ stage: "searching" });
+      else if (msg.type === "progress" && msg.stage === "reading")
+        onProgress({
+          stage: "reading",
+          pages: Number(msg.pages) || 0,
+          sites: Array.isArray(msg.sites) ? msg.sites.map(String) : [],
+        });
+      else if (msg.type === "result") result = { status: Number(msg.status) || 500, data: msg.body ?? {} };
+    } catch {
+      // A malformed line is skipped; the result line is what matters.
+    }
+  };
+
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffered += decoder.decode(value, { stream: true });
+    const lines = buffered.split("\n");
+    buffered = lines.pop() ?? "";
+    lines.forEach(handle);
+  }
+  handle(buffered + decoder.decode());
+
+  // The connection dropped before the server finished.
+  return result ?? { status: 502, data: { error: "The connection dropped before the answer arrived. Try again." } };
 }
 
 export function useTabs() {
@@ -599,22 +653,41 @@ export function useTabs() {
       try {
         const res = await fetch("/api/research", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          // NDJSON: the server reports each stage as it reaches it, so the
+          // loading state can say what is really happening ("Reading 6
+          // pages") instead of a fixed guess. See POST /api/research.
+          headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
           body: JSON.stringify({ question: trimmed, scope: tab.scope, history }),
           signal: controller.signal,
         });
 
-        const data = await res.json().catch(() => ({}));
+        // Progress is display-only, so it updates state without queueing a
+        // sync to the server for every stage.
+        const { status, data } = await readResearch(res, (progress) =>
+          setTabs((prev) =>
+            prev.map((t) =>
+              t.id === tabId
+                ? { ...t, turns: t.turns.map((x) => (x.id === turn.id ? { ...x, progress } : x)) }
+                : t
+            )
+          )
+        );
 
-        if (!res.ok) {
+        if (status < 200 || status >= 300) {
           patchTurn(tabId, turn.id, {
             status: "error",
-            error: data?.error ?? `Request failed (${res.status}).`,
+            error: data?.error ?? `Request failed (${status}).`,
+            progress: undefined,
           });
           return;
         }
 
-        patchTurn(tabId, turn.id, { status: "done", result: data as ResearchResult, error: null });
+        patchTurn(tabId, turn.id, {
+          status: "done",
+          result: data as ResearchResult,
+          error: null,
+          progress: undefined,
+        });
         void pushShared(tabId);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;

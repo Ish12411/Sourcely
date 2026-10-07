@@ -7,7 +7,7 @@ import {
   FOLLOWUP_SCHEMA,
   SOURCES_ONLY_SCHEMA,
 } from "@/lib/gemini";
-import type { Author, HistoryTurn, ResearchResult, Scope, Source } from "@/lib/types";
+import type { Author, HistoryTurn, ResearchProgress, ResearchResult, Scope, Source } from "@/lib/types";
 
 export const runtime = "nodejs";
 /**
@@ -193,6 +193,58 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "That question is too long — keep it under 500 characters." }, { status: 400 });
   }
 
+  const input = { question, scope, history };
+
+  // A client that asks for NDJSON gets progress as it happens — first the
+  // search, then how many pages were actually found — followed by the same
+  // result (or error) the plain JSON response carries. Without the header the
+  // response is unchanged, so anything calling this the old way still works.
+  if (!request.headers.get("accept")?.includes("application/x-ndjson")) {
+    return research(input, () => {});
+  }
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (line: object) => controller.enqueue(encoder.encode(`${JSON.stringify(line)}\n`));
+      try {
+        send({ type: "progress", stage: "searching" });
+        const res = await research(input, (progress) => send({ type: "progress", ...progress }));
+        send({ type: "result", status: res.status, body: await res.json() });
+      } catch (err) {
+        console.error("[/api/research] stream", err);
+        send({
+          type: "result",
+          status: 500,
+          body: { error: "Something went wrong while researching. Check the server console for details." },
+        });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      // Proxies must pass each line through as it is written, not buffer
+      // the whole response — that would defeat the point.
+      "Cache-Control": "no-store, no-transform",
+      "X-Accel-Buffering": "no",
+    },
+  });
+}
+
+type ResearchInput = { question: string; scope: Scope; history: HistoryTurn[] };
+
+/**
+ * The research itself. Returns the same Response the route always returned;
+ * `onProgress` hears about each stage as it is reached.
+ */
+async function research(
+  { question, scope, history }: ResearchInput,
+  onProgress: (progress: ResearchProgress) => void
+): Promise<Response> {
   const maxSources = Number(process.env.MAX_SOURCES ?? 8);
   const historyBlock = history.length ? renderHistory(history) : "";
 
@@ -245,6 +297,12 @@ export async function POST(request: Request) {
         { status: 404 }
       );
     }
+
+    onProgress({
+      stage: "reading",
+      pages: results.length,
+      sites: [...new Set(results.map((r) => hostname(r.url)))].slice(0, 3),
+    });
 
     const sourceBlock = results
       .map((r, i) => {

@@ -67,6 +67,14 @@ export type ResearchResult = {
 export type TurnStatus = "loading" | "done" | "error";
 
 /** One question and its answer inside a conversation. */
+/**
+ * What the server has reported so far about a question still being answered.
+ * Streamed from /api/research; only present while the turn is loading.
+ */
+export type ResearchProgress =
+  | { stage: "searching" }
+  | { stage: "reading"; pages: number; sites: string[] };
+
 export type Turn = {
   id: string;
   question: string;
@@ -74,6 +82,7 @@ export type Turn = {
   result: ResearchResult | null;
   error: string | null;
   createdAt: string;
+  progress?: ResearchProgress;
 };
 
 export type TabKind = "personal" | "group";

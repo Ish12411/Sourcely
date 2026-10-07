@@ -1,21 +1,19 @@
 "use client";
 
 import ResultsView from "./ResultsView";
-import type { Turn } from "@/lib/types";
+import type { ResearchProgress, Turn } from "@/lib/types";
 
 export default function Thread({
   turns,
   numberMaps,
   onMarkerClick,
   onRetry,
-  maxSources,
 }: {
   turns: Turn[];
   /** turn id -> (per-turn source number -> thread-wide number) */
   numberMaps: Map<string, Map<number, number>>;
   onMarkerClick: (threadNumber: number) => void;
   onRetry: (turnId: string) => void;
-  maxSources: number;
 }) {
   return (
     <div>
@@ -47,7 +45,7 @@ export default function Thread({
             </h3>
           )}
 
-          {turn.status === "loading" && <TurnLoading maxSources={maxSources} />}
+          {turn.status === "loading" && <TurnLoading progress={turn.progress} />}
 
           {turn.status === "error" && <TurnError turn={turn} onRetry={() => onRetry(turn.id)} />}
 
@@ -65,20 +63,51 @@ export default function Thread({
   );
 }
 
-function TurnLoading({ maxSources }: { maxSources: number }) {
+/**
+ * Says what the server is actually doing, as it reports it: searching first,
+ * then reading however many pages the search really returned. It used to read
+ * "Reading 8 pages" every time — the configured maximum, not the real count.
+ */
+function TurnLoading({ progress }: { progress?: ResearchProgress }) {
+  const reading = progress?.stage === "reading" ? progress : null;
+  const label = reading
+    ? `Reading ${reading.pages} page${reading.pages === 1 ? "" : "s"}`
+    : "Searching the web";
+  const detail = reading
+    ? reading.sites.join(" · ") + (reading.pages > reading.sites.length ? " · …" : "")
+    : "finding sources";
+
   return (
     <div aria-live="polite" aria-busy="true" style={{ marginBottom: 34 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 12 }}>
-        <span className="section-label" style={{ color: "var(--color-mark)" }}>
-          Reading {maxSources} pages
+        <span className="section-label" style={{ color: "var(--color-mark)", flex: "none" }}>
+          {label}
         </span>
-        <span className="mono-meta" style={{ marginLeft: "auto", color: "var(--meta-dim)" }}>
-          searched · reading · citing
+        <span
+          className="mono-meta"
+          style={{
+            marginLeft: "auto",
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            color: "var(--meta-dim)",
+          }}
+        >
+          {detail}
         </span>
       </div>
 
       <div style={{ height: 2, background: "var(--rule-soft)", marginBottom: 20 }}>
-        <div className="animate-pulse-soft" style={{ height: 2, width: "45%", background: "var(--color-ink)" }} />
+        <div
+          className="animate-pulse-soft"
+          style={{
+            height: 2,
+            width: reading ? "65%" : "25%",
+            background: "var(--color-ink)",
+            transition: "width 600ms cubic-bezier(0.22, 1, 0.36, 1)",
+          }}
+        />
       </div>
 
       {/* Skeleton lines sit in the prose measure, so the answer lands where the

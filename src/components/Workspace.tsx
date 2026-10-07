@@ -17,8 +17,6 @@ const EXAMPLES = [
 
 const ALWAYS_OFFERED = ["Can I have more sources?", "Explain this more simply"];
 
-/** Matches MAX_SOURCES on the server; only used for the loading copy. */
-const MAX_SOURCES = 8;
 
 export default function Workspace({
   openShareId,
@@ -387,7 +385,6 @@ export default function Workspace({
                   numberMaps={numberMap}
                   onMarkerClick={onMarkerClick}
                   onRetry={(turnId) => void retry(active.id, turnId)}
-                  maxSources={MAX_SOURCES}
                 />
               </div>
             )}
