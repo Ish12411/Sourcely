@@ -11,9 +11,9 @@ export const metadata: Metadata = {
  * before submitting to the App Store; until then the page says so rather than
  * showing an address that doesn't exist.
  */
-const CONTACT_EMAIL = "";
+const CONTACT_EMAIL = "ishrao1204@hotmail.com";
 
-const UPDATED = "September 25, 2026";
+const UPDATED = "October 8, 2026";
 
 /*
   Written from what the code actually does, not from a template. Every claim
@@ -49,7 +49,8 @@ export default function PrivacyPage() {
           <P>
             Sourcely stores your email address and the research you do, so your threads are there when you sign in.
             To answer a question it sends that question to two outside services — a search engine and Google&apos;s
-            Gemini AI. Google may use what it receives to improve its products, and people at Google may read it.{" "}
+            Gemini AI, and it asks your permission before the first one is sent. Google may use what it receives to
+            improve its products, and people at Google may read it.{" "}
             <strong>Don&apos;t put personal or sensitive information in your questions.</strong> There are no ads, no
             tracking, and nothing is sold. You can delete your account and everything in it from inside the app at any
             time.
@@ -61,7 +62,7 @@ export default function PrivacyPage() {
             items={[
               [
                 "Your account.",
-                "Your email address. Your password is handled by our sign-in provider and stored only as a secure hash — Sourcely never sees it. If you sign in with Google on the website, Google shares your email address with us.",
+                "Your email address. Your password is handled by our sign-in provider and stored only as a secure hash — Sourcely never sees it. If you sign in with Google on the website, Google shares your email address with us. Your account also records when you confirmed you're 13 or older and when you agreed to the AI processing described below.",
               ],
               [
                 "Your research.",
@@ -94,6 +95,19 @@ export default function PrivacyPage() {
           />
         </Section>
 
+        <Section title="Your permission before anything is sent">
+          <P>
+            The first time you ask a question, Sourcely shows what will be sent to Tavily and Google and asks you to
+            agree. Nothing is sent to either service until you do. If you don&apos;t agree you can still read your
+            saved threads, but you can&apos;t ask new questions, because they can&apos;t be answered without these
+            services. Your email address and account details are never sent to them.
+          </P>
+          <P>
+            To withdraw your permission, delete your account from the sidebar, or contact us and we&apos;ll remove
+            it.
+          </P>
+        </Section>
+
         <Section title="Shared threads">
           <P>
             If you make a thread a group thread, anyone who has its link can read it and add their own follow-up
@@ -116,8 +130,9 @@ export default function PrivacyPage() {
 
         <Section title="Children">
           <P>
-            Sourcely is built for high school and university students and is not intended for children under 13. If you
-            believe a child under 13 has created an account, contact us and it will be deleted.
+            Sourcely is built for high school and university students and is not intended for children under 13. Creating
+            an account requires confirming you are 13 or older. If you believe a child under 13 has created an account,
+            contact us and it will be deleted.
           </P>
         </Section>
 

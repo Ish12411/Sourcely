@@ -281,7 +281,7 @@ export default function Sidebar({
         {/* Kept visible rather than buried in a menu: App Review looks for it,
             and a person looking to leave shouldn't have to hunt. */}
         {user && (
-          <div style={{ padding: "0 16px 12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "0 16px 12px" }}>
             <button
               type="button"
               className="ink-action"
@@ -290,6 +290,10 @@ export default function Sidebar({
             >
               Delete account
             </button>
+            {/* Reachable from inside the app, not only from the sign-in page. */}
+            <a href="/privacy" className="ink-action" style={{ color: "var(--meta)", fontSize: "var(--step-label)" }}>
+              Privacy
+            </a>
           </div>
         )}
 

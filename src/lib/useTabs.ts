@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DEFAULT_STYLE } from "./citations";
 import { SIDEBAR_COOKIE } from "./sidebarCookie";
+import { AI_CONSENT_VERSION } from "./consent";
+import { createClient } from "./supabase/client";
 import type {
   HistoryTurn,
   ResearchProgress,
@@ -156,6 +158,8 @@ async function readResearch(
   return result ?? { status: 502, data: { error: "The connection dropped before the answer arrived. Try again." } };
 }
 
+export type AccountUser = { id: string; email: string | null; aiConsentAt: string | null };
+
 export function useTabs() {
   const [firstTab] = useState(() => newTab());
   const [tabs, setTabs] = useState<Tab[]>([firstTab]);
@@ -198,8 +202,26 @@ export function useTabs() {
 
   /* ------------------------------------------------------------ account */
 
-  const [user, setUser] = useState<{ id: string; email: string | null } | null>(null);
+  const [user, setUser] = useState<AccountUser | null>(null);
   const [accountLoaded, setAccountLoaded] = useState(false);
+  /**
+   * Record that this person agreed to their questions going to the outside
+   * search and AI services. Stored on the account (Supabase user metadata),
+   * which is where /api/research checks for it.
+   */
+  const recordAiConsent = useCallback(async (): Promise<{ error?: string }> => {
+    const at = new Date().toISOString();
+    try {
+      const { error } = await createClient().auth.updateUser({
+        data: { ai_consent_at: at, ai_consent_version: AI_CONSENT_VERSION },
+      });
+      if (error) return { error: error.message };
+    } catch {
+      return { error: "Couldn't save that. Check your connection and try again." };
+    }
+    setUser((u) => (u ? { ...u, aiConsentAt: at } : u));
+    return {};
+  }, []);
   /** Local threads that predate this account and could be adopted into it. */
   const [migratable, setMigratable] = useState<Tab[]>([]);
 
@@ -222,7 +244,7 @@ export function useTabs() {
         }
         if (!res.ok) return;
         const { user: me, threads } = (await res.json()) as {
-          user?: { id: string; email: string | null };
+          user?: AccountUser;
           threads: ServerThread[];
         };
         if (cancelled) return;
@@ -673,6 +695,14 @@ export function useTabs() {
           )
         );
 
+        if (status === 403 && data?.code === "ai_consent_required") {
+          // Asked before agreeing (or on a device where the account hadn't
+          // loaded yet). Drop the turn rather than leave an error behind, and
+          // ask for permission; the question is re-asked once they agree.
+          patch(tabId, { turns: baseTurns, title: tab.title });
+          return { needsConsent: true as const };
+        }
+
         if (status < 200 || status >= 300) {
           patchTurn(tabId, turn.id, {
             status: "error",
@@ -708,7 +738,7 @@ export function useTabs() {
       const tab = tabsRef.current.find((t) => t.id === tabId);
       const turn = tab?.turns.find((t) => t.id === turnId);
       if (!tab || !turn) return;
-      await ask(tabId, turn.question, { replaceTurnId: turnId });
+      return ask(tabId, turn.question, { replaceTurnId: turnId });
     },
     [ask]
   );
@@ -733,6 +763,7 @@ export function useTabs() {
     refreshShared,
     user,
     accountLoaded,
+    recordAiConsent,
     migratable,
     migrateLocalThreads,
     dismissMigration,

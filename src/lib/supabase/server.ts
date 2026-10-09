@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies, headers } from "next/headers";
+import { AI_CONSENT_VERSION } from "@/lib/consent";
 
 /**
  * Server-side Supabase client bound to the request's cookies.
@@ -32,7 +33,31 @@ export async function createSupabaseServerClient() {
   });
 }
 
-export type SignedInUser = { id: string; email: string | null };
+export type SignedInUser = {
+  id: string;
+  email: string | null;
+  /**
+   * When this person agreed to their questions being sent to the outside AI
+   * and search services, or null if they haven't. Kept in Supabase user
+   * metadata, so it follows the account across devices. See AiConsentDialog.
+   */
+  aiConsentAt: string | null;
+};
+
+function toSignedInUser(user: {
+  id: string;
+  email?: string | null;
+  user_metadata?: Record<string, unknown>;
+}): SignedInUser {
+  const meta = user.user_metadata ?? {};
+  const consented =
+    Number(meta.ai_consent_version) >= AI_CONSENT_VERSION && typeof meta.ai_consent_at === "string";
+  return {
+    id: user.id,
+    email: user.email ?? null,
+    aiConsentAt: consented ? (meta.ai_consent_at as string) : null,
+  };
+}
 
 /**
  * The signed-in user, or null.
@@ -58,7 +83,7 @@ export async function getCurrentUser(): Promise<SignedInUser | null> {
     });
     const { data, error } = await supabase.auth.getUser(bearer);
     if (error || !data.user) return null;
-    return { id: data.user.id, email: data.user.email ?? null };
+    return toSignedInUser(data.user);
   }
 
   const supabase = await createSupabaseServerClient();
@@ -67,5 +92,5 @@ export async function getCurrentUser(): Promise<SignedInUser | null> {
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return null;
 
-  return { id: data.user.id, email: data.user.email ?? null };
+  return toSignedInUser(data.user);
 }

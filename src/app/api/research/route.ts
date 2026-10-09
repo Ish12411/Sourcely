@@ -7,6 +7,7 @@ import {
   FOLLOWUP_SCHEMA,
   SOURCES_ONLY_SCHEMA,
 } from "@/lib/gemini";
+import { getCurrentUser } from "@/lib/supabase/server";
 import type { Author, HistoryTurn, ResearchProgress, ResearchResult, Scope, Source } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -172,6 +173,29 @@ function renderHistory(history: HistoryTurn[]): string {
 }
 
 export async function POST(request: Request) {
+  // Every research request spends paid search and AI quota, and sends text to
+  // two outside services. So it needs a signed-in person (this route was
+  // reachable by anyone before) who has agreed to that sharing — App Store
+  // Guideline 5.1.2(i) requires explicit permission before personal data goes
+  // to a third-party AI. The app asks first (AiConsentDialog); this is the
+  // check that holds even if a client skips the asking.
+  // With sign-in not configured at all (local development without Supabase)
+  // there is nobody to check, matching the middleware's behaviour.
+  const authConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  const user = authConfigured ? await getCurrentUser() : null;
+  if (authConfigured && !user) {
+    return NextResponse.json({ error: "Sign in to research." }, { status: 401 });
+  }
+  if (user && !user.aiConsentAt) {
+    return NextResponse.json(
+      {
+        error: "Agree to how Sourcely answers questions before asking one.",
+        code: "ai_consent_required",
+      },
+      { status: 403 }
+    );
+  }
+
   let question: string;
   let scope: Scope;
   let history: HistoryTurn[];

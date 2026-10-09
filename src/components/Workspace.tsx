@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AiConsentDialog from "./AiConsentDialog";
 import Composer, { type ComposerHandle } from "./Composer";
 import Sidebar from "./Sidebar";
 import SourcesModal, { type FocusRequest } from "./SourcesModal";
@@ -44,12 +45,52 @@ export default function Workspace({
     openShared,
     refreshShared,
     user,
+    accountLoaded,
+    recordAiConsent,
     migratable,
     migrateLocalThreads,
     dismissMigration,
   } = useTabs();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  /*
+    Consent to send questions to the outside AI and search services
+    (AiConsentDialog). Asked on first use once the account has loaded; if the
+    person says "Not now", asked again only when they try to ask something,
+    with that question held and sent the moment they agree.
+  */
+  const needsConsent = Boolean(user && !user.aiConsentAt);
+  const [consentDismissed, setConsentDismissed] = useState(false);
+  const [pendingQuestion, setPendingQuestion] = useState<{ tabId: string; question: string } | null>(null);
+  const showConsent = (needsConsent && accountLoaded && !consentDismissed) || pendingQuestion !== null;
+
+  const submitQuestion = useCallback(
+    async (tabId: string, question: string) => {
+      if (needsConsent) {
+        setPendingQuestion({ tabId, question });
+        return;
+      }
+      const outcome = await ask(tabId, question);
+      // The server can still say no (consent given on another device that
+      // hasn't synced here, or withdrawn). Ask, holding the question.
+      if (outcome?.needsConsent) setPendingQuestion({ tabId, question });
+    },
+    [ask, needsConsent]
+  );
+
+  const retryQuestion = useCallback(
+    async (tabId: string, turnId: string) => {
+      const question = tabs.find((t) => t.id === tabId)?.turns.find((t) => t.id === turnId)?.question;
+      if (needsConsent && question) {
+        setPendingQuestion({ tabId, question });
+        return;
+      }
+      const outcome = await retry(tabId, turnId);
+      if (outcome?.needsConsent && question) setPendingQuestion({ tabId, question });
+    },
+    [needsConsent, retry, tabs]
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
   /**
    * A one-off message above the thread. `transient` marks a confirmation of
@@ -376,7 +417,7 @@ export default function Workspace({
                 >
                   Ask an academic question.
                 </p>
-                <Composer ref={composer} busy={busy} variant="empty" suggestions={suggestions} onSubmit={(q) => void ask(active.id, q)} />
+                <Composer ref={composer} busy={busy} variant="empty" suggestions={suggestions} onSubmit={(q) => void submitQuestion(active.id, q)} />
               </div>
             ) : (
               <div style={{ width: "100%", maxWidth: 744, paddingBottom: 40 }}>
@@ -384,7 +425,7 @@ export default function Workspace({
                   turns={active.turns}
                   numberMaps={numberMap}
                   onMarkerClick={onMarkerClick}
-                  onRetry={(turnId) => void retry(active.id, turnId)}
+                  onRetry={(turnId) => void retryQuestion(active.id, turnId)}
                 />
               </div>
             )}
@@ -407,7 +448,7 @@ export default function Workspace({
                 busy={busy}
                 variant="docked"
                 suggestions={suggestions}
-                onSubmit={(q) => void ask(active.id, q)}
+                onSubmit={(q) => void submitQuestion(active.id, q)}
               />
             </div>
           )}
@@ -425,6 +466,24 @@ export default function Workspace({
           />
         )}
       </div>
+
+      {showConsent && (
+        <AiConsentDialog
+          onAgree={async () => {
+            const result = await recordAiConsent();
+            if (result.error) return result;
+            setConsentDismissed(true);
+            const pending = pendingQuestion;
+            setPendingQuestion(null);
+            if (pending) void ask(pending.tabId, pending.question);
+            return {};
+          }}
+          onDecline={() => {
+            setConsentDismissed(true);
+            setPendingQuestion(null);
+          }}
+        />
+      )}
 
       {editing && (
         <TabEditDialog

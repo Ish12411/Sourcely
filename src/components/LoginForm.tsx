@@ -58,6 +58,7 @@ export default function LoginForm({
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [busy, setBusy] = useState<null | "email" | "google">(null);
   // /auth/callback and /auth/confirm both send failures back as ?error=...
   // Nothing read it before, so an expired reset link landed here silently.
@@ -119,7 +120,12 @@ export default function LoginForm({
       }
 
       if (mode === "signup") {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          // A record of the 13+ confirmation, kept with the account.
+          options: { data: { age_13_plus_confirmed_at: new Date().toISOString() } },
+        });
         if (error) throw error;
         // With email confirmation switched off, signUp returns a live session
         // and we go straight in. With it on, there is no session yet.
@@ -352,9 +358,41 @@ export default function LoginForm({
             </p>
           )}
 
+          {/* The privacy policy says Sourcely isn't for children under 13, and
+              the App Store age rating is 13+; sign-up says so and asks for a
+              tick rather than leaving it in the small print. */}
+          {mode === "signup" && (
+            <label
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 10,
+                font: "400 0.8125rem/1.5 var(--font-sans)",
+                color: "var(--body-secondary)",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                required
+                checked={ageConfirmed}
+                onChange={(e) => setAgeConfirmed(e.target.checked)}
+                disabled={!configured || busy !== null}
+                style={{ flex: "none", width: 18, height: 18, marginTop: 1, accentColor: "var(--color-ink)" }}
+              />
+              <span>
+                I&apos;m 13 or older and I&apos;ve read the{" "}
+                <a href="/privacy" style={{ color: "var(--color-ink)" }}>
+                  privacy policy
+                </a>
+                .
+              </span>
+            </label>
+          )}
+
           <button
             type="submit"
-            disabled={!configured || busy !== null}
+            disabled={!configured || busy !== null || (mode === "signup" && !ageConfirmed)}
             className="btn-primary"
             style={{ width: "100%", padding: "11px 15px" }}
           >
