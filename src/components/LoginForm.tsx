@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient, isAuthConfigured } from "@/lib/supabase/client";
 
-type Mode = "signin" | "signup" | "forgot";
+type Mode = "signin" | "signup";
 
 /**
  * Turn Supabase auth errors into something a student can act on. The raw
@@ -17,7 +17,7 @@ function humanise(message: string, mode: Mode): string {
     // This is exactly what someone who signed up with Google sees when they
     // try a password — including inside the app, where Google is hidden — so
     // name the way out rather than leaving them to guess.
-    return "That email and password don't match an account. If you signed up with Google, use “Forgot password?” to set a password.";
+    return "That email and password don't match an account. If you signed up with Google, sign in with Google on the website at sourcely-app.vercel.app.";
   }
   if (m.includes("already registered") || m.includes("already been registered")) {
     return "There's already an account with that email. Switch to signing in.";
@@ -25,13 +25,8 @@ function humanise(message: string, mode: Mode): string {
   if (m.includes("password should be at least")) {
     return "Passwords need to be at least 6 characters.";
   }
-  if (m.includes("for security purposes")) {
-    return "A link was just sent. Wait a minute before asking for another.";
-  }
   if (m.includes("rate limit") || m.includes("over_email_send_rate_limit")) {
-    return mode === "forgot"
-      ? "Too many emails have gone out in the last hour. Wait an hour and try again."
-      : "Too many sign-up emails have gone out in the last hour. Wait an hour and try again, or use Google on the website.";
+    return "Too many sign-ups in the last hour. Wait a while and try again.";
   }
   if (m.includes("email not confirmed")) {
     return "That account still needs confirming. Check your inbox for the confirmation link.";
@@ -60,8 +55,7 @@ export default function LoginForm({
   const [password, setPassword] = useState("");
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [busy, setBusy] = useState<null | "email" | "google">(null);
-  // /auth/callback and /auth/confirm both send failures back as ?error=...
-  // Nothing read it before, so an expired reset link landed here silently.
+  // /auth/callback sends failures back as ?error=...
   const [error, setError] = useState<string | null>(initialError);
   // After an in-app account deletion the dialog lands here with ?deleted=1;
   // saying so plainly confirms the deletion actually went through.
@@ -99,25 +93,6 @@ export default function LoginForm({
 
     try {
       const supabase = createClient();
-
-      if (mode === "forgot") {
-        // The link in the email is a token_hash link verified server-side at
-        // /auth/confirm (see NATIVELY-SETUP.md for the template). That matters
-        // here: the request comes from inside the app, but the email opens in
-        // Mail or Safari. The default PKCE link only works in the browser that
-        // asked for it, so it would fail every time from the app.
-        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: `${window.location.origin}/reset-password`,
-        });
-        if (error) throw error;
-        // Same message whether or not an account exists, so this form can't be
-        // used to find out which emails are registered.
-        setNotice(
-          "If there's an account for that email, a link to set a new password is on its way. Open it on this device, choose a password, then come back here and sign in."
-        );
-        setMode("signin");
-        return;
-      }
 
       if (mode === "signup") {
         const { data, error } = await supabase.auth.signUp({
@@ -280,24 +255,9 @@ export default function LoginForm({
             />
           </label>
 
-          {mode !== "forgot" && (
           <label style={{ display: "block" }}>
-            <span style={{ display: "flex", alignItems: "baseline", marginBottom: 6 }}>
-              <span className="section-label">Password</span>
-              {mode === "signin" && (
-                <button
-                  type="button"
-                  className="ink-action"
-                  style={{ marginLeft: "auto", fontSize: "var(--step-label)" }}
-                  onClick={() => {
-                    setMode("forgot");
-                    setError(null);
-                    setNotice(null);
-                  }}
-                >
-                  Forgot password?
-                </button>
-              )}
+            <span className="section-label" style={{ display: "block", marginBottom: 6 }}>
+              Password
             </span>
             <input
               type="password"
@@ -318,14 +278,6 @@ export default function LoginForm({
               </span>
             )}
           </label>
-          )}
-
-          {mode === "forgot" && (
-            <p style={{ margin: 0, font: "400 0.8125rem/1.6 var(--font-sans)", color: "var(--body-secondary)" }}>
-              Enter your email and you'll get a link to set a new password. This also works if you signed up with
-              Google and never had a password.
-            </p>
-          )}
 
           {error && (
             <p
@@ -400,20 +352,16 @@ export default function LoginForm({
               {busy === "email"
                 ? mode === "signup"
                   ? "Creating account…"
-                  : mode === "forgot"
-                    ? "Sending…"
-                    : "Signing in…"
+                  : "Signing in…"
                 : mode === "signup"
                   ? "Create account"
-                  : mode === "forgot"
-                    ? "Send reset link"
-                    : "Sign in"}
+                  : "Sign in"}
             </span>
           </button>
         </form>
 
         <p style={{ margin: "18px 0 0", font: "400 0.8125rem/1.6 var(--font-sans)", color: "var(--meta)" }}>
-          {mode === "signin" ? "No account yet? " : mode === "forgot" ? "Remembered it? " : "Already have an account? "}
+          {mode === "signin" ? "No account yet? " : "Already have an account? "}
           <button
             type="button"
             className="ink-action"

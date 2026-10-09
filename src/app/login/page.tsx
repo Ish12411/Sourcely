@@ -20,7 +20,7 @@ const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v
 export default async function LoginPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   const ua = (await headers()).get("user-agent") ?? "";
-  // Same-origin paths only, as in /auth/confirm: after sign-in the form
+  // Same-origin paths only: after sign-in the form
   // navigates here, and an unchecked value would send people off-site.
   const nextParam = first(params.next) ?? "";
   const next = nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/";
