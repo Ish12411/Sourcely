@@ -62,7 +62,12 @@ export default function Workspace({
   */
   const needsConsent = Boolean(user && !user.aiConsentAt);
   const [consentDismissed, setConsentDismissed] = useState(false);
-  const [pendingQuestion, setPendingQuestion] = useState<{ tabId: string; question: string } | null>(null);
+  const [pendingQuestion, setPendingQuestion] = useState<{
+    tabId: string;
+    question: string;
+    /** Set when the held question is a retry, so it replaces the failed turn. */
+    replaceTurnId?: string;
+  } | null>(null);
   const showConsent = (needsConsent && accountLoaded && !consentDismissed) || pendingQuestion !== null;
 
   const submitQuestion = useCallback(
@@ -83,11 +88,11 @@ export default function Workspace({
     async (tabId: string, turnId: string) => {
       const question = tabs.find((t) => t.id === tabId)?.turns.find((t) => t.id === turnId)?.question;
       if (needsConsent && question) {
-        setPendingQuestion({ tabId, question });
+        setPendingQuestion({ tabId, question, replaceTurnId: turnId });
         return;
       }
       const outcome = await retry(tabId, turnId);
-      if (outcome?.needsConsent && question) setPendingQuestion({ tabId, question });
+      if (outcome?.needsConsent && question) setPendingQuestion({ tabId, question, replaceTurnId: turnId });
     },
     [needsConsent, retry, tabs]
   );
@@ -158,6 +163,45 @@ export default function Workspace({
     return () => {
       window.removeEventListener("resize", onResize);
       cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  const tabsNow = useRef(tabs);
+  useEffect(() => {
+    tabsNow.current = tabs;
+  }, [tabs]);
+
+  // The Natively app keeps this page alive in the background for days, so an
+  // update could sit unseen until someone force-quit the app — and an old copy
+  // talking to a new server misbehaves (it showed the permission check as an
+  // error). When the app comes back to the foreground, ask the server which
+  // build it's running and reload onto it if it's newer. Never mid-question
+  // and never over a half-typed one.
+  useEffect(() => {
+    const built = process.env.NEXT_PUBLIC_BUILD_SHA;
+    if (!built || built === "dev") return;
+    let checking = false;
+    async function check() {
+      if (document.visibilityState !== "visible" || checking) return;
+      checking = true;
+      try {
+        const res = await fetch("/api/version", { cache: "no-store" });
+        const { sha } = (await res.json()) as { sha?: string };
+        if (!sha || sha === "dev" || sha === built) return;
+        const busy = tabsNow.current.some((t) => t.turns.some((turn) => turn.status === "loading"));
+        const typing = Array.from(document.querySelectorAll("textarea")).some((el) => el.value.trim());
+        if (!busy && !typing) window.location.reload();
+      } catch {
+        // Offline: try again next time the app comes back.
+      } finally {
+        checking = false;
+      }
+    }
+    document.addEventListener("visibilitychange", check);
+    window.addEventListener("focus", check);
+    return () => {
+      document.removeEventListener("visibilitychange", check);
+      window.removeEventListener("focus", check);
     };
   }, []);
 
@@ -475,7 +519,7 @@ export default function Workspace({
             setConsentDismissed(true);
             const pending = pendingQuestion;
             setPendingQuestion(null);
-            if (pending) void ask(pending.tabId, pending.question);
+            if (pending) void ask(pending.tabId, pending.question, { replaceTurnId: pending.replaceTurnId });
             return {};
           }}
           onDecline={() => {

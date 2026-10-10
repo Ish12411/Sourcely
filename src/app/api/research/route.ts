@@ -189,7 +189,9 @@ export async function POST(request: Request) {
   if (user && !user.aiConsentAt) {
     return NextResponse.json(
       {
-        error: "Agree to how Sourcely answers questions before asking one.",
+        // Shown as-is by app versions from before the permission screen
+        // existed, so it says what to do rather than what went wrong.
+        error: "Close and reopen Sourcely, then agree to the permission screen to ask questions.",
         code: "ai_consent_required",
       },
       { status: 403 }
