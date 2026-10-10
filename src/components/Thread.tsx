@@ -46,7 +46,7 @@ export default function Thread({
             </h3>
           )}
 
-          {turn.status === "loading" && <TurnLoading progress={turn.progress} />}
+          {turn.status === "loading" && <TurnLoading progress={turn.progress} seed={turn.id} />}
 
           {turn.status === "error" && <TurnError turn={turn} onRetry={() => onRetry(turn.id)} />}
 
@@ -78,56 +78,126 @@ function quoted(query: string): string {
   return `“${q.length > 48 ? `${q.slice(0, 47).trimEnd()}…` : q}”`;
 }
 
+/*
+  Wording pools. Each question draws its own mix (seeded by the turn id, so
+  the lines stay put while that question loads), so the wait reads
+  differently every time instead of "Searching… Reading…" on repeat. Every
+  pool belongs to one real stage: nothing here claims a step the server
+  hasn't reported.
+*/
+const START = ["Getting started", "Opening the library doors", "Warming up the search", "Setting up your research"];
+const UNDERSTANDING = [
+  "Rereading the thread",
+  "Recalling your earlier questions",
+  "Connecting this to what you asked before",
+  "Picking up where you left off",
+  "Working out what you mean",
+];
+const FINDING = [
+  "Combing the web",
+  "Hunting for trustworthy pages",
+  "Tracking down sources",
+  "Sifting through results",
+  "Digging a little deeper",
+  "Gathering candidates",
+  "Looking past the ads",
+  "Weeding out weak pages",
+  "Lining up the best matches",
+];
+const FINDING_ACADEMIC = [
+  "Browsing journals and archives",
+  "Checking university libraries",
+  "Consulting government records",
+  "Looking through research papers",
+];
+const FINDING_FILTERED = ["Skipping homework sites and social media", "Leaving out essay mills"];
+const FINDING_MORE = ["Looking for sources you haven't seen yet", "Skipping the ones you already have"];
+const FOUND = ["Found", "Pulled up", "Gathered", "Turned up"];
+const READ_VERBS = ["Reading", "Skimming", "Checking", "Scanning", "Studying", "Going through", "Pulling notes from", "Taking notes on"];
+const ANALYSING = [
+  "Comparing what the sources say",
+  "Cross-checking the facts",
+  "Weighing the evidence",
+  "Spotting where sources disagree",
+  "Connecting the dots",
+  "Pulling out the key points",
+];
+const WRITING = ["Drafting your answer", "Piecing it together", "Writing your answer", "Polishing the wording"];
+const CITING = ["Lining up citations", "Numbering the sources", "Formatting references", "Double-checking the details"];
+const FINISHING = ["Almost done", "Putting on the finishing touches", "Nearly there"];
+
+/** Small deterministic PRNG, so a turn's wording doesn't reshuffle on re-render. */
+function seeded(seed: string): () => number {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
+  return () => {
+    h = Math.imul(h ^ (h >>> 15), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    return ((h ^= h >>> 16) >>> 0) / 4294967296;
+  };
+}
+
+function pick<T>(rand: () => number, list: T[], n: number): T[] {
+  const pool = [...list];
+  const out: T[] = [];
+  while (out.length < n && pool.length) out.push(pool.splice(Math.floor(rand() * pool.length), 1)[0]);
+  return out;
+}
+
 /**
- * Every line is about the step the server has actually reported: following a
- * follow-up, searching for a specific query, or reading specific sites. Within
- * a step the line moves on every second or so, because the slow parts (the
- * search, and reading plus writing in one AI call) give no finer signal of
- * their own. It used to sit on "Reading 8 pages" for the whole wait.
+ * Lines for the stage the server has reported. The real details — the query
+ * searched and the sites found — are always in there; the rest is varied
+ * wording for the parts of the wait that give no finer signal of their own.
  */
-function loadingLines(progress?: ResearchProgress): LoadingLine[] {
-  if (!progress) return [{ text: "Starting your search", step: 1, ms: 1200 }];
+function loadingLines(progress: ResearchProgress | undefined, seed: string): LoadingLine[] {
+  const rand = seeded(`${seed}:${progress?.stage ?? "start"}`);
+  const line = (text: string, step: 1 | 2 | 3, ms = 1000): LoadingLine => ({ text, step, ms });
+
+  if (!progress) return [line(pick(rand, START, 1)[0], 1)];
 
   if (progress.stage === "understanding") {
-    return [
-      { text: "Reading your earlier questions", step: 1, ms: 1300 },
-      { text: "Working out what you're asking", step: 1, ms: 1300 },
-    ];
+    return pick(rand, UNDERSTANDING, 2).map((t) => line(t, 1, 1200));
   }
 
   if (progress.stage === "searching") {
     const lines: LoadingLine[] = [];
-    if (progress.query) lines.push({ text: `Searching for ${quoted(progress.query)}`, step: 1, ms: 1400 });
-    lines.push(
-      progress.scope === "academic"
-        ? { text: "Searching journals, universities and government sites", step: 1, ms: 1300 }
-        : { text: "Searching the web", step: 1, ms: 1100 }
-    );
-    if (progress.scope !== "everything") {
-      lines.push({ text: "Skipping homework sites and social media", step: 1, ms: 1200 });
-    }
-    lines.push(
-      progress.more
-        ? { text: "Looking for sources you haven't seen yet", step: 1, ms: 1300 }
-        : { text: "Ranking the most relevant pages", step: 1, ms: 1300 }
-    );
+    if (progress.query) lines.push(line(`Searching for ${quoted(progress.query)}`, 1, 1400));
+    // Searches take 2–5 seconds, so the lines most specific to this search go first.
+    const extras = [
+      ...(progress.more ? pick(rand, FINDING_MORE, 1) : []),
+      ...pick(rand, progress.scope === "academic" ? FINDING_ACADEMIC : FINDING, 2),
+      ...(progress.scope !== "everything" ? pick(rand, FINDING_FILTERED, 1) : []),
+      ...pick(rand, FINDING.filter((t) => !lines.some((l) => l.text === t)), 2),
+    ];
+    // De-duplicate while keeping order.
+    for (const t of extras) if (!lines.some((l) => l.text === t)) lines.push(line(t, 1));
     return lines;
   }
 
   const pages = `${progress.pages} page${progress.pages === 1 ? "" : "s"}`;
+  const verbs = pick(rand, READ_VERBS, READ_VERBS.length);
+  // Answers usually land 6–10 seconds after this point, so the site list is
+  // kept short and quick, with a comparing line mixed in, or the varied
+  // lines after it would rarely get a turn.
+  const sites = progress.sites.slice(0, 5).map((site, i) => line(`${verbs[i % verbs.length]} ${site}`, 2, 800));
+  const [early, late] = pick(rand, ANALYSING, 2);
+  const compareEarly = line(early, 2, 1200);
+  const compareLate = line(late, 3, 1200);
   return [
-    { text: `Found ${pages}`, step: 2, ms: 1000 },
-    ...progress.sites.map((site): LoadingLine => ({ text: `Reading ${site}`, step: 2, ms: 950 })),
-    { text: "Comparing what the sources say", step: 3, ms: 1500 },
-    { text: "Writing your answer", step: 3, ms: 2200 },
-    { text: "Adding citations", step: 3, ms: 2200 },
-    { text: "Almost done", step: 3, ms: 0 },
+    line(`${pick(rand, FOUND, 1)[0]} ${pages}`, 2, 900),
+    ...sites.slice(0, 2),
+    compareEarly,
+    ...sites.slice(2),
+    compareLate,
+    ...pick(rand, WRITING, 2).map((t) => line(t, 3, 1600)),
+    ...pick(rand, CITING, 2).map((t) => line(t, 3, 1600)),
+    line(pick(rand, FINISHING, 1)[0], 3, 0),
   ];
 }
 
-function TurnLoading({ progress }: { progress?: ResearchProgress }) {
+function TurnLoading({ progress, seed }: { progress?: ResearchProgress; seed: string }) {
   // Remounting per stage restarts the sequence when the server moves on.
-  return <LoadingTicker key={progress?.stage ?? "start"} lines={loadingLines(progress)} />;
+  return <LoadingTicker key={progress?.stage ?? "start"} lines={loadingLines(progress, seed)} />;
 }
 
 function LoadingTicker({ lines }: { lines: LoadingLine[] }) {
