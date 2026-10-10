@@ -23,17 +23,47 @@ export class TavilyError extends Error {
 }
 
 /**
- * Universities and government bodies, as TLD wildcards.
+ * Where the "Academic" scope searches: scholarly publishers, research
+ * universities, government and intergovernmental bodies, and research
+ * organisations. A plain domain covers its subdomains (nih.gov includes
+ * pmc.ncbi.nlm.nih.gov, harvard.edu includes med.harvard.edu).
  *
- * Deliberately short. Measured against the live API, `include_domains` is
- * unreliable once the list grows: the same five-wildcard list returned zero
- * results on three consecutive calls and eight on the next probe, and a
- * four-item list returned zero while a five-item superset of it returned
- * eight. Bare suffixes like ".edu" are accepted but silently do not filter at
- * all — only the "*.edu" form works. Every academic search therefore runs
- * through `searchWithScope`, which falls back rather than trusting this.
+ * Concrete domains, not suffixes. Tavily now rejects TLD wildcards such as
+ * "*.edu" with a 400, and a bare ".edu" returns nothing — which broke every
+ * academic search. Measured in October 2026: this 60-domain list returned 15–16
+ * results for history, science, economics and literature questions alike, and
+ * the same results on repeat calls. searchWithScope still falls back if it
+ * comes back thin or fails.
  */
-export const ACADEMIC_INCLUDE = ["*.edu", "*.gov", "*.ac.uk"];
+export const ACADEMIC_INCLUDE = [
+  // Journals, presses and scholarly databases
+  "jstor.org", "muse.jhu.edu", "sciencedirect.com", "springer.com", "wiley.com",
+  "tandfonline.com", "cambridge.org", "academic.oup.com", "sagepub.com", "arxiv.org",
+  "plos.org", "pnas.org", "nature.com", "science.org", "cell.com", "thelancet.com",
+  "bmj.com", "nejm.org", "jamanetwork.com", "pubs.acs.org", "ieee.org", "acm.org",
+  "frontiersin.org", "annualreviews.org", "nber.org", "britannica.com",
+  // Government and intergovernmental
+  "nih.gov", "cdc.gov", "state.gov", "loc.gov", "archives.gov", "nasa.gov", "noaa.gov",
+  "energy.gov", "census.gov", "bls.gov", "federalreserve.gov", "si.edu", "gov.uk",
+  "europa.eu", "who.int", "un.org", "worldbank.org", "imf.org", "oecd.org",
+  // Research organisations
+  "pewresearch.org", "brookings.edu", "rand.org", "cfr.org",
+  // Universities
+  "harvard.edu", "stanford.edu", "mit.edu", "yale.edu", "princeton.edu", "berkeley.edu",
+  "columbia.edu", "uchicago.edu", "ox.ac.uk", "cam.ac.uk", "ucl.ac.uk",
+];
+
+/** True for academic and official hosts, used to rank a widened search. */
+export function isAcademicHost(url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  if (/\.(edu|gov|mil|int)$|\.(ac|edu|gov)\.[a-z]{2}$|\.gc\.ca$/.test(host)) return true;
+  return ACADEMIC_INCLUDE.some((d) => host === d || host.endsWith(`.${d}`));
+}
 
 /**
  * Video, social, and homework-mill sites. Not "bad websites" in general —
@@ -67,7 +97,10 @@ export async function tavilySearch(
   } = {}
 ): Promise<TavilyResult[]> {
   const key = process.env.TAVILY_API_KEY;
-  if (!key) throw new TavilyError("TAVILY_API_KEY is not set. Add it to .env.local.");
+  if (!key) {
+    console.error("[tavily] TAVILY_API_KEY is not set");
+    throw new TavilyError("Search isn't set up on the server yet. Try again later.", 503);
+  }
 
   const res = await fetch("https://api.tavily.com/search", {
     method: "POST",
@@ -88,15 +121,15 @@ export async function tavilySearch(
     signal: opts.signal,
   });
 
+  // These messages are shown to students, so they say what to do; the
+  // technical detail goes to the server log instead.
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    if (res.status === 401 || res.status === 403) {
-      throw new TavilyError("Tavily rejected the API key. Check TAVILY_API_KEY in .env.local.", res.status);
+    console.error(`[tavily] ${res.status}`, detail.slice(0, 500));
+    if (res.status === 429 || res.status === 432 || res.status === 433) {
+      throw new TavilyError("The search service is busy right now. Try again in a few minutes.", 503);
     }
-    if (res.status === 429) {
-      throw new TavilyError("Tavily rate limit or monthly credit reached. Try again later.", res.status);
-    }
-    throw new TavilyError(`Tavily search failed (${res.status}). ${detail.slice(0, 200)}`, res.status);
+    throw new TavilyError("The search service had a problem with that request. Try again in a moment.", 502);
   }
 
   const data = (await res.json()) as TavilyResponse;
@@ -136,15 +169,28 @@ export async function searchWithScope(
   }
 
   if (scope === "academic") {
-    const strict = await tavilySearch(query, {
-      ...base,
-      includeDomains: ACADEMIC_INCLUDE,
-      excludeDomains: LOW_SIGNAL_DOMAINS,
-    });
+    let strict: TavilyResult[] = [];
+    try {
+      strict = await tavilySearch(query, {
+        ...base,
+        includeDomains: ACADEMIC_INCLUDE,
+        excludeDomains: LOW_SIGNAL_DOMAINS,
+      });
+    } catch (err) {
+      // A rejected filter (as when Tavily stopped accepting "*.edu") must not
+      // sink the search; widen instead, below.
+      if (!(err instanceof TavilyError)) throw err;
+    }
     if (strict.length >= MIN_ACADEMIC_RESULTS) {
       return { results: strict, scopeUsed: "academic", fellBack: false };
     }
-    const widened = await tavilySearch(query, { ...base, excludeDomains: LOW_SIGNAL_DOMAINS });
+    const widenedRaw = await tavilySearch(query, { ...base, excludeDomains: LOW_SIGNAL_DOMAINS });
+    // Academic and official pages first, so the closest thing to what was
+    // asked for is what gets read.
+    const widened = [
+      ...widenedRaw.filter((r) => isAcademicHost(r.url)),
+      ...widenedRaw.filter((r) => !isAcademicHost(r.url)),
+    ];
     // Keep whichever is actually better rather than assuming the retry won.
     if (widened.length <= strict.length) {
       return { results: strict, scopeUsed: "academic", fellBack: false };
