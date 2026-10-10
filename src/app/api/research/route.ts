@@ -234,7 +234,6 @@ export async function POST(request: Request) {
     async start(controller) {
       const send = (line: object) => controller.enqueue(encoder.encode(`${JSON.stringify(line)}\n`));
       try {
-        send({ type: "progress", stage: "searching" });
         const res = await research(input, (progress) => send({ type: "progress", ...progress }));
         send({ type: "result", status: res.status, body: await res.json() });
       } catch (err) {
@@ -289,6 +288,7 @@ async function research(
       const previous = history[history.length - 1];
       searchQuery = previous.searchQuery?.trim() || previous.question;
     } else if (history.length > 0 && needsRewrite(question)) {
+      onProgress({ stage: "understanding" });
       try {
         const rewrite = await geminiJson<{ searchQuery: string; wantsMoreSources: boolean }>({
           system: FOLLOWUP_SYSTEM,
@@ -306,6 +306,7 @@ async function research(
     // "More sources" means sources we haven't already shown, so ask for a wider
     // net and drop anything already cited in this conversation.
     const seenUrls = new Set(history.flatMap((t) => t.sources.map((s) => s.url)));
+    onProgress({ stage: "searching", query: searchQuery, scope, more: wantsMoreSources });
     const { results: rawResults, scopeUsed, fellBack } = await searchWithScope(searchQuery, scope, {
       maxResults: wantsMoreSources ? Math.min(maxSources * 2, 20) : maxSources,
     });
@@ -327,7 +328,7 @@ async function research(
     onProgress({
       stage: "reading",
       pages: results.length,
-      sites: [...new Set(results.map((r) => hostname(r.url)))].slice(0, 3),
+      sites: [...new Set(results.map((r) => hostname(r.url)))].slice(0, 8),
     });
 
     const sourceBlock = results

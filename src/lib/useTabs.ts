@@ -131,7 +131,14 @@ async function readResearch(
     if (!line.trim()) return;
     try {
       const msg = JSON.parse(line);
-      if (msg.type === "progress" && msg.stage === "searching") onProgress({ stage: "searching" });
+      if (msg.type === "progress" && msg.stage === "understanding") onProgress({ stage: "understanding" });
+      else if (msg.type === "progress" && msg.stage === "searching")
+        onProgress({
+          stage: "searching",
+          query: String(msg.query ?? ""),
+          scope: msg.scope === "academic" || msg.scope === "everything" ? msg.scope : "balanced",
+          more: Boolean(msg.more),
+        });
       else if (msg.type === "progress" && msg.stage === "reading")
         onProgress({
           stage: "reading",

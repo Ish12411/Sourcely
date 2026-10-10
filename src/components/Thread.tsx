@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import ResultsView from "./ResultsView";
 import type { ResearchProgress, Turn } from "@/lib/types";
 
@@ -63,38 +64,112 @@ export default function Thread({
   );
 }
 
+type LoadingLine = {
+  text: string;
+  /** Which of the three steps it belongs to: find, read, write. */
+  step: 1 | 2 | 3;
+  /** How long to show it before moving on. The last line stays. */
+  ms: number;
+};
+
+/** A question, clipped to fit the one-line label. */
+function quoted(query: string): string {
+  const q = query.trim().replace(/[?.!]+$/, "");
+  return `“${q.length > 48 ? `${q.slice(0, 47).trimEnd()}…` : q}”`;
+}
+
 /**
- * Says what the server is actually doing, as it reports it: searching first,
- * then reading however many pages the search really returned. It used to read
- * "Reading 8 pages" every time — the configured maximum, not the real count.
+ * Every line is about the step the server has actually reported: following a
+ * follow-up, searching for a specific query, or reading specific sites. Within
+ * a step the line moves on every second or so, because the slow parts (the
+ * search, and reading plus writing in one AI call) give no finer signal of
+ * their own. It used to sit on "Reading 8 pages" for the whole wait.
  */
+function loadingLines(progress?: ResearchProgress): LoadingLine[] {
+  if (!progress) return [{ text: "Starting your search", step: 1, ms: 1200 }];
+
+  if (progress.stage === "understanding") {
+    return [
+      { text: "Reading your earlier questions", step: 1, ms: 1300 },
+      { text: "Working out what you're asking", step: 1, ms: 1300 },
+    ];
+  }
+
+  if (progress.stage === "searching") {
+    const lines: LoadingLine[] = [];
+    if (progress.query) lines.push({ text: `Searching for ${quoted(progress.query)}`, step: 1, ms: 1400 });
+    lines.push(
+      progress.scope === "academic"
+        ? { text: "Searching journals, universities and government sites", step: 1, ms: 1300 }
+        : { text: "Searching the web", step: 1, ms: 1100 }
+    );
+    if (progress.scope !== "everything") {
+      lines.push({ text: "Skipping homework sites and social media", step: 1, ms: 1200 });
+    }
+    lines.push(
+      progress.more
+        ? { text: "Looking for sources you haven't seen yet", step: 1, ms: 1300 }
+        : { text: "Ranking the most relevant pages", step: 1, ms: 1300 }
+    );
+    return lines;
+  }
+
+  const pages = `${progress.pages} page${progress.pages === 1 ? "" : "s"}`;
+  return [
+    { text: `Found ${pages}`, step: 2, ms: 1000 },
+    ...progress.sites.map((site): LoadingLine => ({ text: `Reading ${site}`, step: 2, ms: 950 })),
+    { text: "Comparing what the sources say", step: 3, ms: 1500 },
+    { text: "Writing your answer", step: 3, ms: 2200 },
+    { text: "Adding citations", step: 3, ms: 2200 },
+    { text: "Almost done", step: 3, ms: 0 },
+  ];
+}
+
 function TurnLoading({ progress }: { progress?: ResearchProgress }) {
-  const reading = progress?.stage === "reading" ? progress : null;
-  const label = reading
-    ? `Reading ${reading.pages} page${reading.pages === 1 ? "" : "s"}`
-    : "Searching the web";
-  const detail = reading
-    ? reading.sites.join(" · ") + (reading.pages > reading.sites.length ? " · …" : "")
-    : "finding sources";
+  // Remounting per stage restarts the sequence when the server moves on.
+  return <LoadingTicker key={progress?.stage ?? "start"} lines={loadingLines(progress)} />;
+}
+
+function LoadingTicker({ lines }: { lines: LoadingLine[] }) {
+  const [index, setIndex] = useState(0);
+  const i = Math.min(index, lines.length - 1);
+  const line = lines[i];
+
+  // Primitive deps only: `lines` is rebuilt on every parent render, and
+  // depending on it would restart the timer each time and stall the ticker.
+  const last = i >= lines.length - 1;
+  const ms = line.ms;
+  useEffect(() => {
+    if (last) return;
+    const timer = setTimeout(() => setIndex((n) => n + 1), ms);
+    return () => clearTimeout(timer);
+  }, [i, last, ms]);
+
+  // Finding fills the first third of the bar; reading and writing the rest.
+  const within = lines.length > 1 ? i / (lines.length - 1) : 0;
+  const finding = lines[0].step === 1;
+  const bar = Math.round(finding ? 8 + within * 27 : 40 + within * 52);
 
   return (
     <div aria-live="polite" aria-busy="true" style={{ marginBottom: 34 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 12 }}>
-        <span className="section-label" style={{ color: "var(--color-mark)", flex: "none" }}>
-          {label}
-        </span>
         <span
-          className="mono-meta"
+          className="section-label"
           style={{
-            marginLeft: "auto",
+            color: "var(--color-mark)",
+            flex: 1,
             minWidth: 0,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            color: "var(--meta-dim)",
           }}
         >
-          {detail}
+          <span key={line.text} className="label-swap">
+            {line.text}
+          </span>
+        </span>
+        <span className="mono-meta" style={{ flex: "none", color: "var(--meta-dim)" }}>
+          step {line.step} of 3
         </span>
       </div>
 
@@ -103,9 +178,9 @@ function TurnLoading({ progress }: { progress?: ResearchProgress }) {
           className="animate-pulse-soft"
           style={{
             height: 2,
-            width: reading ? "65%" : "25%",
+            width: `${bar}%`,
             background: "var(--color-ink)",
-            transition: "width 600ms cubic-bezier(0.22, 1, 0.36, 1)",
+            transition: "width 900ms cubic-bezier(0.22, 1, 0.36, 1)",
           }}
         />
       </div>

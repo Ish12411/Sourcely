@@ -72,7 +72,11 @@ export type TurnStatus = "loading" | "done" | "error";
  * Streamed from /api/research; only present while the turn is loading.
  */
 export type ResearchProgress =
-  | { stage: "searching" }
+  /** A follow-up is being read against the earlier questions in the thread. */
+  | { stage: "understanding" }
+  /** The web search is running, for exactly this query. */
+  | { stage: "searching"; query: string; scope: Scope; more: boolean }
+  /** The pages found are being read and the answer written. */
   | { stage: "reading"; pages: number; sites: string[] };
 
 export type Turn = {
