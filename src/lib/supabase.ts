@@ -68,6 +68,10 @@ async function rest(path: string, init: RequestInit & { prefer?: string } = {}) 
     if (res.status === 401 || res.status === 403) {
       throw new ShareError("Supabase rejected the service-role key. Check SUPABASE_SERVICE_ROLE_KEY.", 500);
     }
+    if (res.status === 409) {
+      // Unique-key conflict: a row with that id already exists.
+      throw new ShareError("conflict", 409);
+    }
     throw new ShareError(`Supabase request failed (${res.status}). ${detail.slice(0, 200)}`, 502);
   }
 
@@ -206,6 +210,12 @@ export async function listThreads(ownerId: string): Promise<OwnedThread[]> {
  * Create or update one thread. The client supplies the id, so a thread keeps
  * the same identity from the moment it is created locally through every later
  * sync — no reconciliation of local ids against server ids.
+ *
+ * Update-if-owned, else insert. This used to be a single upsert that merged on
+ * id, which meant writing someone else's thread id overwrote their thread and
+ * moved it into your account — reachable from a phone that had another
+ * account's threads cached. Now an existing row is only touched when owner_id
+ * matches, and an id that belongs to anyone else is refused.
  */
 export async function upsertThread(input: {
   id: string;
@@ -215,22 +225,36 @@ export async function upsertThread(input: {
   scope: Scope;
   turns: Turn[];
 }): Promise<OwnedThread> {
-  const res = await rest(TABLE, {
-    method: "POST",
-    prefer: "resolution=merge-duplicates,return=representation",
-    body: JSON.stringify({
-      id: input.id,
-      owner_id: input.ownerId,
-      title: input.title,
-      style: input.style,
-      scope: input.scope,
-      turns: input.turns,
-      updated_at: new Date().toISOString(),
-    }),
-  });
-  const rows = (await res.json()) as OwnedRow[];
-  if (!rows.length) throw new ShareError("Supabase wrote no row.", 502);
-  return toThread(rows[0]);
+  const fields = {
+    title: input.title,
+    style: input.style,
+    scope: input.scope,
+    turns: input.turns,
+    updated_at: new Date().toISOString(),
+  };
+
+  const updated = await rest(
+    `${TABLE}?id=eq.${encodeURIComponent(input.id)}&owner_id=eq.${encodeURIComponent(input.ownerId)}`,
+    { method: "PATCH", prefer: "return=representation", body: JSON.stringify(fields) }
+  );
+  const updatedRows = (await updated.json()) as OwnedRow[];
+  if (updatedRows.length) return toThread(updatedRows[0]);
+
+  try {
+    const inserted = await rest(TABLE, {
+      method: "POST",
+      prefer: "return=representation",
+      body: JSON.stringify({ id: input.id, owner_id: input.ownerId, ...fields }),
+    });
+    const rows = (await inserted.json()) as OwnedRow[];
+    if (!rows.length) throw new ShareError("Supabase wrote no row.", 502);
+    return toThread(rows[0]);
+  } catch (err) {
+    if (err instanceof ShareError && err.status === 409) {
+      throw new ShareError("That thread belongs to another account.", 403);
+    }
+    throw err;
+  }
 }
 
 /** Deletes only if the caller owns it; a foreign id silently matches nothing. */

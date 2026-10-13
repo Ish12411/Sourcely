@@ -3,6 +3,7 @@
 import { useState } from "react";
 import DeleteAccountDialog from "./DeleteAccountDialog";
 import type { Tab } from "@/lib/types";
+import { clearLocalThreads } from "@/lib/useTabs";
 
 /** Two-character chip for the collapsed spine: "1973 oil crisis" -> "73". */
 function initialism(title: string): string {
@@ -270,7 +271,9 @@ export default function Sidebar({
             </span>
             {/* A form POST, not a link: a GET sign-out can be triggered by any
                 page that embeds an image pointing at the route. */}
-            <form action="/auth/signout" method="post" style={{ flex: "none" }}>
+            {/* Clears this device's copy of the threads first, so the next
+                person to sign in on this phone starts clean. */}
+            <form action="/auth/signout" method="post" onSubmit={clearLocalThreads} style={{ flex: "none" }}>
               <button type="submit" className="ink-action">
                 Sign out
               </button>

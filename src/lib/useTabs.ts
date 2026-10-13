@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DEFAULT_STYLE } from "./citations";
 import { SIDEBAR_COOKIE } from "./sidebarCookie";
 import { AI_CONSENT_VERSION } from "./consent";
-import { createClient } from "./supabase/client";
+import { createClient, isAuthConfigured } from "./supabase/client";
 import type {
   HistoryTurn,
   ResearchProgress,
@@ -73,7 +73,12 @@ function titleFrom(question: string): string {
   return question.length > 48 ? `${question.slice(0, 48)}…` : question;
 }
 
-type Persisted = { tabs: Tab[]; activeId: string; sidebarCollapsed?: boolean };
+/**
+ * The device's working copy. `ownerId` is the account it belongs to: without
+ * it, signing in as someone else on the same phone showed the previous
+ * person's threads (and offered to move them into the new account).
+ */
+type Persisted = { tabs: Tab[]; activeId: string; sidebarCollapsed?: boolean; ownerId?: string | null };
 
 function load(): Persisted | null {
   try {
@@ -99,9 +104,19 @@ function load(): Persisted | null {
       tabs,
       activeId: tabs.some((t) => t.id === parsed.activeId) ? parsed.activeId : tabs[0].id,
       sidebarCollapsed: Boolean(parsed.sidebarCollapsed),
+      ownerId: typeof parsed.ownerId === "string" ? parsed.ownerId : null,
     };
   } catch {
     return null;
+  }
+}
+
+/** Remove this device's copy of the threads, e.g. on sign-out. */
+export function clearLocalThreads() {
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Storage unavailable: nothing stored to clear.
   }
 }
 
@@ -181,20 +196,52 @@ export function useTabs() {
     tabsRef.current = tabs;
   }, [tabs]);
 
+  /** The account the in-memory threads belong to, written with every save. */
+  const ownerRef = useRef<string | null>(null);
+
   useEffect(() => {
-    const saved = load();
-    if (saved) {
-      setTabs(saved.tabs);
-      setActiveIdRaw(saved.activeId);
-      setSidebarCollapsed(Boolean(saved.sidebarCollapsed));
-    }
-    setHydrated(true);
+    let cancelled = false;
+    (async () => {
+      const saved = load();
+      // Who is signed in, from the session cookie (no network round trip in
+      // the usual case), so the cached copy can be checked before it is shown.
+      let sessionUserId: string | null = null;
+      const authOn = isAuthConfigured();
+      if (authOn) {
+        try {
+          const { data } = await createClient().auth.getSession();
+          sessionUserId = data.session?.user.id ?? null;
+        } catch {
+          // Unreadable session: treat as unknown, and show nothing cached.
+        }
+      }
+      if (cancelled) return;
+
+      // Only the signed-in account's own copy is shown. Anything else — another
+      // account's, or an untagged copy from before copies were tagged — is
+      // dropped from view and overwritten; that account's threads are still
+      // safe on the server.
+      const ownCopy = Boolean(saved) && (!authOn || (sessionUserId !== null && saved!.ownerId === sessionUserId));
+      if (saved) setSidebarCollapsed(Boolean(saved.sidebarCollapsed));
+      if (saved && ownCopy) {
+        setTabs(saved.tabs);
+        setActiveIdRaw(saved.activeId);
+      }
+      ownerRef.current = sessionUserId;
+      setHydrated(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
     if (!hydrated) return;
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ tabs, activeId, sidebarCollapsed }));
+      window.localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ tabs, activeId, sidebarCollapsed, ownerId: ownerRef.current })
+      );
     } catch {
       // Quota exceeded — the app still works, results just won't survive a reload.
     }
@@ -257,6 +304,15 @@ export function useTabs() {
         if (cancelled) return;
         setUser(me ?? null);
         if (!me || !Array.isArray(threads)) return;
+        if (ownerRef.current !== me.id) {
+          // The session changed between the cookie check and now (or the
+          // cookie was unreadable): nothing in memory is known to be theirs.
+          ownerRef.current = me.id;
+          const fresh = newTab();
+          tabsRef.current = [fresh];
+          setTabs([fresh]);
+          setActiveIdRaw(fresh.id);
+        }
 
         const serverIds = new Set(threads.map((t) => t.id));
         const local = tabsRef.current;
