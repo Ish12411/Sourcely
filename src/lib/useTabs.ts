@@ -180,7 +180,13 @@ async function readResearch(
   return result ?? { status: 502, data: { error: "The connection dropped before the answer arrived. Try again." } };
 }
 
-export type AccountUser = { id: string; email: string | null; aiConsentAt: string | null };
+export type AccountUser = {
+  id: string;
+  email: string | null;
+  aiConsentAt: string | null;
+  blockedUserIds: string[];
+  hiddenTurnIds: string[];
+};
 
 export function useTabs() {
   const [firstTab] = useState(() => newTab());
@@ -276,6 +282,70 @@ export function useTabs() {
     setUser((u) => (u ? { ...u, aiConsentAt: at } : u));
     return {};
   }, []);
+
+  /*
+    Report and Block (App Store Guideline 1.2). Both lists live in the
+    person's own account metadata, so they follow them across devices; the
+    server reads the block list too, to stop a blocked person adding to the
+    blocker's threads.
+  */
+  const userRef = useRef<AccountUser | null>(null);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  const saveModeration = useCallback(
+    async (changes: { blockedUserIds?: string[]; hiddenTurnIds?: string[] }): Promise<{ error?: string }> => {
+      const data: Record<string, string[]> = {};
+      if (changes.blockedUserIds) data.blocked_user_ids = changes.blockedUserIds;
+      if (changes.hiddenTurnIds) data.hidden_turn_ids = changes.hiddenTurnIds;
+      try {
+        const { error } = await createClient().auth.updateUser({ data });
+        if (error) return { error: error.message };
+      } catch {
+        return { error: "Couldn't save that. Check your connection and try again." };
+      }
+      setUser((u) => (u ? { ...u, ...changes } : u));
+      return {};
+    },
+    []
+  );
+
+  /** Report someone else's question in a group thread, and hide it for the reporter. */
+  const reportTurn = useCallback(
+    async (tabId: string, turnId: string, reason: string, note: string): Promise<{ error?: string }> => {
+      const tab = tabsRef.current.find((t) => t.id === tabId);
+      const me = userRef.current;
+      if (!tab?.shareId || !me) return { error: "Only questions in a shared thread can be reported." };
+      try {
+        const res = await fetch("/api/report", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ shareId: tab.shareId, turnId, reason, note }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return { error: data?.error ?? "Couldn't send that report." };
+      } catch {
+        return { error: "Couldn't reach the server. Try again." };
+      }
+      const hidden = [...new Set([...me.hiddenTurnIds, turnId])].slice(-500);
+      return saveModeration({ hiddenTurnIds: hidden });
+    },
+    [saveModeration]
+  );
+
+  /** Block the author of a question: everything they add is hidden from this person. */
+  const blockAuthor = useCallback(
+    async (authorId: string): Promise<{ error?: string }> => {
+      const me = userRef.current;
+      if (!me || authorId === me.id) return { error: "Can't block that person." };
+      const blocked = [...new Set([...me.blockedUserIds, authorId])].slice(-500);
+      return saveModeration({ blockedUserIds: blocked });
+    },
+    [saveModeration]
+  );
+
+  const unblockAll = useCallback(() => saveModeration({ blockedUserIds: [] }), [saveModeration]);
   /** Local threads that predate this account and could be adopted into it. */
   const [migratable, setMigratable] = useState<Tab[]>([]);
 
@@ -319,7 +389,7 @@ export function useTabs() {
 
         // An empty untouched tab is not work worth migrating or keeping.
         const localWithWork = local.filter((t) => t.turns.length > 0);
-        setMigratable(localWithWork.filter((t) => !serverIds.has(t.id)));
+        setMigratable(localWithWork.filter((t) => !serverIds.has(t.id) && !t.joined));
 
         if (threads.length > 0) {
           const adopted: Tab[] = threads.map((t) => ({
@@ -371,7 +441,7 @@ export function useTabs() {
         setTimeout(async () => {
           pushTimers.current.delete(tabId);
           const tab = tabsRef.current.find((t) => t.id === tabId);
-          if (!tab || tab.turns.length === 0 || !isSyncableId(tab.id)) return;
+          if (!tab || tab.turns.length === 0 || !isSyncableId(tab.id) || tab.joined) return;
           try {
             await fetch("/api/threads", {
               method: "POST",
@@ -570,6 +640,7 @@ export function useTabs() {
         }
 
         const created = newTab({
+          joined: true,
           title: conversation.title,
           kind: "group",
           style: conversation.style,
@@ -827,6 +898,9 @@ export function useTabs() {
     user,
     accountLoaded,
     recordAiConsent,
+    reportTurn,
+    blockAuthor,
+    unblockAll,
     migratable,
     migrateLocalThreads,
     dismissMigration,

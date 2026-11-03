@@ -87,6 +87,11 @@ export type Turn = {
   error: string | null;
   createdAt: string;
   progress?: ResearchProgress;
+  /**
+   * Who asked it. Set by the server on group threads; absent on a turn still
+   * on its way up, which is always the current person's own.
+   */
+  authorId?: string;
 };
 
 export type TabKind = "personal" | "group";
@@ -95,6 +100,12 @@ export type Tab = {
   id: string;
   title: string;
   kind: TabKind;
+  /**
+   * Opened from someone else's share link. Kept on this device and refreshed
+   * from the link, never saved into the viewer's own account: doing that made
+   * a private copy of other people's group thread, shown twice after reload.
+   */
+  joined?: boolean;
   style: StyleId;
   scope: Scope;
   turns: Turn[];

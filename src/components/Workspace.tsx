@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AiConsentDialog from "./AiConsentDialog";
+import ModerationDialog, { type ModerationTarget } from "./ModerationDialog";
 import Composer, { type ComposerHandle } from "./Composer";
 import Sidebar from "./Sidebar";
 import SourcesModal, { type FocusRequest } from "./SourcesModal";
@@ -47,12 +48,16 @@ export default function Workspace({
     user,
     accountLoaded,
     recordAiConsent,
+    reportTurn,
+    blockAuthor,
+    unblockAll,
     migratable,
     migrateLocalThreads,
     dismissMigration,
   } = useTabs();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [moderating, setModerating] = useState<ModerationTarget | null>(null);
 
   /*
     Consent to send questions to the outside AI and search services
@@ -282,6 +287,7 @@ export default function Workspace({
         drawerOpen={drawerOpen}
         onCloseDrawer={() => setDrawerOpen(false)}
         user={user}
+        onUnblockAll={unblockAll}
       />
 
       <div style={{ flex: 1, display: "flex", minWidth: 0, minHeight: 0 }}>
@@ -470,6 +476,20 @@ export default function Workspace({
                   numberMaps={numberMap}
                   onMarkerClick={onMarkerClick}
                   onRetry={(turnId) => void retryQuestion(active.id, turnId)}
+                  moderation={
+                    active.kind === "group" && user
+                      ? {
+                          viewerId: user.id,
+                          blockedUserIds: user.blockedUserIds,
+                          hiddenTurnIds: user.hiddenTurnIds,
+                          onReport: (turn) =>
+                            setModerating({ kind: "report", tabId: active.id, turnId: turn.id, question: turn.question }),
+                          onBlock: (turn) =>
+                            turn.authorId &&
+                            setModerating({ kind: "block", authorId: turn.authorId, question: turn.question }),
+                        }
+                      : undefined
+                  }
                 />
               </div>
             )}
@@ -526,6 +546,19 @@ export default function Workspace({
             setConsentDismissed(true);
             setPendingQuestion(null);
           }}
+        />
+      )}
+
+      {moderating && (
+        <ModerationDialog
+          target={moderating}
+          onReport={(reason, note) =>
+            moderating.kind === "report"
+              ? reportTurn(moderating.tabId, moderating.turnId, reason, note)
+              : Promise.resolve({})
+          }
+          onBlock={() => (moderating.kind === "block" ? blockAuthor(moderating.authorId) : Promise.resolve({}))}
+          onClose={() => setModerating(null)}
         />
       )}
 

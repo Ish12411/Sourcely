@@ -4,21 +4,51 @@ import { useEffect, useState } from "react";
 import ResultsView from "./ResultsView";
 import type { ResearchProgress, Turn } from "@/lib/types";
 
+/** Report and Block, for questions other people added to a group thread. */
+export type ThreadModeration = {
+  viewerId: string;
+  blockedUserIds: string[];
+  hiddenTurnIds: string[];
+  onReport: (turn: Turn) => void;
+  onBlock: (turn: Turn) => void;
+};
+
 export default function Thread({
   turns,
   numberMaps,
   onMarkerClick,
   onRetry,
+  moderation,
 }: {
   turns: Turn[];
   /** turn id -> (per-turn source number -> thread-wide number) */
   numberMaps: Map<string, Map<number, number>>;
   onMarkerClick: (threadNumber: number) => void;
   onRetry: (turnId: string) => void;
+  /** Present only for group threads. */
+  moderation?: ThreadModeration;
 }) {
   return (
     <div>
-      {turns.map((turn, i) => (
+      {turns.map((turn, i) => {
+        // Someone else's question in a group thread: it can be reported or its
+        // author blocked, and once either happens it is hidden from this viewer.
+        const foreign = Boolean(moderation && turn.authorId && turn.authorId !== moderation.viewerId);
+        const blocked = foreign && moderation!.blockedUserIds.includes(turn.authorId!);
+        const reported = foreign && moderation!.hiddenTurnIds.includes(turn.id);
+        if (blocked || reported) {
+          return (
+            <section
+              key={turn.id}
+              style={i > 0 ? { borderTop: "1px solid var(--rule)", paddingTop: 20, marginTop: 30 } : undefined}
+            >
+              <p className="mono-meta" style={{ margin: 0, color: "var(--meta-dim)" }}>
+                {blocked ? "A question from someone you blocked is hidden." : "A question you reported is hidden."}
+              </p>
+            </section>
+          );
+        }
+        return (
         <section
           key={turn.id}
           style={
@@ -46,6 +76,22 @@ export default function Thread({
             </h3>
           )}
 
+          {foreign && (
+            <div
+              style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", margin: "-8px 0 20px" }}
+            >
+              <span className="mono-meta" style={{ color: "var(--meta-dim)" }}>
+                added by a group member
+              </span>
+              <button type="button" className="ink-action" style={{ fontSize: "var(--step-label)" }} onClick={() => moderation!.onReport(turn)}>
+                Report
+              </button>
+              <button type="button" className="ink-action" style={{ fontSize: "var(--step-label)" }} onClick={() => moderation!.onBlock(turn)}>
+                Block
+              </button>
+            </div>
+          )}
+
           {turn.status === "loading" && <TurnLoading progress={turn.progress} seed={turn.id} />}
 
           {turn.status === "error" && <TurnError turn={turn} onRetry={() => onRetry(turn.id)} />}
@@ -59,7 +105,8 @@ export default function Thread({
             />
           )}
         </section>
-      ))}
+        );
+      })}
     </div>
   );
 }

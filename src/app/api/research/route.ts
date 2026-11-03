@@ -8,6 +8,7 @@ import {
   SOURCES_ONLY_SCHEMA,
 } from "@/lib/gemini";
 import { getCurrentUser } from "@/lib/supabase/server";
+import { isOffensive, OFFENSIVE_MESSAGE } from "@/lib/moderation";
 import type { Author, HistoryTurn, ResearchProgress, ResearchResult, Scope, Source } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -214,6 +215,9 @@ export async function POST(request: Request) {
 
   if (!question) {
     return NextResponse.json({ error: "Enter a question to research." }, { status: 400 });
+  }
+  if (isOffensive(question)) {
+    return NextResponse.json({ error: OFFENSIVE_MESSAGE, code: "offensive" }, { status: 422 });
   }
   if (question.length > 500) {
     return NextResponse.json({ error: "That question is too long — keep it under 500 characters." }, { status: 400 });

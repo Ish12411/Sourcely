@@ -42,6 +42,10 @@ export type SignedInUser = {
    * metadata, so it follows the account across devices. See AiConsentDialog.
    */
   aiConsentAt: string | null;
+  /** People this user has blocked: their questions are hidden from them. */
+  blockedUserIds: string[];
+  /** Questions this user has reported, hidden from them straight away. */
+  hiddenTurnIds: string[];
 };
 
 function toSignedInUser(user: {
@@ -52,10 +56,13 @@ function toSignedInUser(user: {
   const meta = user.user_metadata ?? {};
   const consented =
     Number(meta.ai_consent_version) >= AI_CONSENT_VERSION && typeof meta.ai_consent_at === "string";
+  const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
   return {
     id: user.id,
     email: user.email ?? null,
     aiConsentAt: consented ? (meta.ai_consent_at as string) : null,
+    blockedUserIds: strings(meta.blocked_user_ids),
+    hiddenTurnIds: strings(meta.hidden_turn_ids),
   };
 }
 

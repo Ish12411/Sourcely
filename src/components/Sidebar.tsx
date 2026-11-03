@@ -31,7 +31,9 @@ type Props = {
   onEdit: (id: string) => void;
   onToggleCollapsed: () => void;
   /** Signed-in account, or null while it is still being resolved. */
-  user: { id: string; email: string | null } | null;
+  user: { id: string; email: string | null; blockedUserIds?: string[] } | null;
+  /** Clears the signed-in person's block list. */
+  onUnblockAll?: () => Promise<{ error?: string }>;
   /** Mobile drawer visibility; ignored at desktop widths. */
   drawerOpen: boolean;
   onCloseDrawer: () => void;
@@ -48,6 +50,7 @@ export default function Sidebar({
   drawerOpen,
   onCloseDrawer,
   user,
+  onUnblockAll,
 }: Props) {
   const personal = tabs.filter((t) => t.kind === "personal");
   const group = tabs.filter((t) => t.kind === "group");
@@ -297,6 +300,21 @@ export default function Sidebar({
             <a href="/privacy" className="ink-action" style={{ color: "var(--meta)", fontSize: "var(--step-label)" }}>
               Privacy
             </a>
+          </div>
+        )}
+
+        {user && (user.blockedUserIds?.length ?? 0) > 0 && onUnblockAll && (
+          <div style={{ padding: "0 16px 12px" }}>
+            <button
+              type="button"
+              className="ink-action"
+              onClick={() => {
+                if (window.confirm("Unblock everyone you've blocked? Their questions will show again.")) void onUnblockAll();
+              }}
+              style={{ color: "var(--meta)", fontSize: "var(--step-label)" }}
+            >
+              Unblock {user.blockedUserIds!.length} {user.blockedUserIds!.length === 1 ? "person" : "people"}
+            </button>
           </div>
         )}
 

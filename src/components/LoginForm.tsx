@@ -25,6 +25,10 @@ function humanise(message: string, mode: Mode): string {
   if (m.includes("password should be at least")) {
     return "Passwords need to be at least 6 characters.";
   }
+  if (m.includes("banned")) {
+    // Set from the /admin reports queue, for breaking the rules in a group thread.
+    return "This account has been suspended for breaking Sourcely's rules. If you think that's a mistake, email ishrao1204@hotmail.com.";
+  }
   if (m.includes("rate limit") || m.includes("over_email_send_rate_limit")) {
     return "Too many sign-ups in the last hour. Wait a while and try again.";
   }

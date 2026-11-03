@@ -86,6 +86,7 @@ export function newShareId(): string {
 
 type Row = {
   share_id: string;
+  owner_id: string | null;
   title: string;
   style: string;
   scope: string;
@@ -93,13 +94,23 @@ type Row = {
   updated_at: string;
 };
 
+/**
+ * Every turn carries who asked it. Turns added to a group thread are stamped
+ * with their author by the server (appendToConversation); older ones, and the
+ * owner's own, have none stored, and those were asked by the owner.
+ */
+function withAuthors(turns: unknown, ownerId: string | null): Turn[] {
+  if (!Array.isArray(turns)) return [];
+  return (turns as Turn[]).map((t) => (t.authorId || !ownerId ? t : { ...t, authorId: ownerId }));
+}
+
 function toConversation(row: Row): SharedConversation {
   return {
     shareId: row.share_id,
     title: row.title,
     style: row.style as StyleId,
     scope: row.scope as Scope,
-    turns: Array.isArray(row.turns) ? row.turns : [],
+    turns: withAuthors(row.turns, row.owner_id),
     updatedAt: row.updated_at,
   };
 }
@@ -136,15 +147,71 @@ export async function getConversation(shareId: string): Promise<SharedConversati
   return rows.length ? toConversation(rows[0]) : null;
 }
 
-export async function updateConversation(
+/** The stored row behind a share link, including who owns it. */
+async function getConversationRow(shareId: string): Promise<Row | null> {
+  const res = await rest(`${TABLE}?share_id=eq.${encodeURIComponent(shareId)}&select=*`);
+  const rows = (await res.json()) as Row[];
+  return rows.length ? rows[0] : null;
+}
+
+export class ContributionError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "ContributionError";
+  }
+}
+
+/** Most turns a group thread can hold, so one link can't grow without bound. */
+const MAX_SHARED_TURNS = 100;
+
+/**
+ * Add a signed-in person's new questions to a group thread.
+ *
+ * Add-only. This replaced a write that stored whatever turns the client sent,
+ * so anyone with the link could rewrite or delete other people's questions.
+ * Now the stored turns are kept exactly as they are, only turns with new ids
+ * and a finished answer are appended, and each is stamped with its author —
+ * which is what Report and Block act on. Renaming and changing the style or
+ * scope are the owner's alone. Anyone the owner has blocked is refused.
+ */
+export async function appendToConversation(
   shareId: string,
-  patch: Partial<{ title: string; style: StyleId; scope: Scope; turns: Turn[] }>
+  callerId: string,
+  patch: Partial<{ title: string; style: StyleId; scope: Scope; turns: Turn[] }>,
+  check: (turn: Turn) => string | null
 ): Promise<SharedConversation | null> {
+  const row = await getConversationRow(shareId);
+  if (!row) return null;
+  const isOwner = row.owner_id === callerId;
+
+  if (row.owner_id && !isOwner) {
+    const blocked = (await getUserMetadata(row.owner_id))?.blocked_user_ids;
+    if (Array.isArray(blocked) && blocked.includes(callerId)) {
+      throw new ContributionError("The owner of this thread has blocked you from adding to it.", 403);
+    }
+  }
+
+  const stored = Array.isArray(row.turns) ? row.turns : [];
+  const known = new Set(stored.map((t) => t.id));
+  const additions = (patch.turns ?? [])
+    .filter((t) => t && typeof t.id === "string" && !known.has(t.id) && (t.status === "done" || t.status === "error"))
+    .map((t) => ({ ...t, authorId: callerId, progress: undefined }));
+
+  for (const t of additions) {
+    const problem = check(t);
+    if (problem) throw new ContributionError(problem, 422);
+  }
+  if (stored.length + additions.length > MAX_SHARED_TURNS) {
+    throw new ContributionError("This thread is full. Start a new one to keep going.", 409);
+  }
+
   const body: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  if (patch.title !== undefined) body.title = patch.title;
-  if (patch.style !== undefined) body.style = patch.style;
-  if (patch.scope !== undefined) body.scope = patch.scope;
-  if (patch.turns !== undefined) body.turns = patch.turns;
+  if (additions.length) body.turns = [...stored, ...additions];
+  if (isOwner) {
+    if (patch.title !== undefined) body.title = patch.title;
+    if (patch.style !== undefined) body.style = patch.style;
+    if (patch.scope !== undefined) body.scope = patch.scope;
+  }
 
   const res = await rest(`${TABLE}?share_id=eq.${encodeURIComponent(shareId)}`, {
     method: "PATCH",
@@ -153,6 +220,50 @@ export async function updateConversation(
   });
   const rows = (await res.json()) as Row[];
   return rows.length ? toConversation(rows[0]) : null;
+}
+
+/** A user's metadata, read with the service key. Null if they don't exist. */
+export async function getUserMetadata(userId: string): Promise<Record<string, unknown> | null> {
+  const { url, key } = config();
+  const res = await fetch(`${url}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+    headers: { apikey: key, Authorization: `Bearer ${key}` },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const user = (await res.json()) as { user_metadata?: Record<string, unknown> };
+  return user.user_metadata ?? {};
+}
+
+/** Find one turn in a group thread, to check a report against. */
+export async function findSharedTurn(shareId: string, turnId: string): Promise<Turn | null> {
+  const row = await getConversationRow(shareId);
+  if (!row) return null;
+  return withAuthors(row.turns, row.owner_id).find((t) => t.id === turnId) ?? null;
+}
+
+export type ReportRecord = {
+  reporter_id: string;
+  share_id: string;
+  turn_id: string;
+  author_id: string | null;
+  reason: string;
+  note: string;
+  question: string;
+};
+
+/**
+ * Store a content report in the `reports` table. Returns false if that fails
+ * (for instance the table hasn't been created yet; the SQL is in DEPLOY.md),
+ * and the caller logs the report so it still reaches the server logs.
+ */
+export async function saveReport(report: ReportRecord): Promise<boolean> {
+  try {
+    await rest("reports", { method: "POST", body: JSON.stringify(report) });
+    return true;
+  } catch (err) {
+    console.error("[report] couldn't store report:", err instanceof Error ? err.message : err);
+    return false;
+  }
 }
 
 /* ------------------------------------------------------------- threads
@@ -178,6 +289,7 @@ export type OwnedThread = {
 
 type OwnedRow = {
   id: string;
+  owner_id: string | null;
   title: string;
   style: string;
   scope: string;
@@ -192,7 +304,7 @@ function toThread(row: OwnedRow): OwnedThread {
     title: row.title,
     style: row.style as StyleId,
     scope: row.scope as Scope,
-    turns: Array.isArray(row.turns) ? row.turns : [],
+    turns: withAuthors(row.turns, row.owner_id),
     shareId: row.share_id,
     updatedAt: row.updated_at,
   };
@@ -317,5 +429,54 @@ export async function deleteAuthUser(userId: string): Promise<void> {
   if (!res.ok && res.status !== 404) {
     const detail = await res.text().catch(() => "");
     throw new ShareError(`Couldn't delete the account (${res.status}). ${detail.slice(0, 160)}`, 502);
+  }
+}
+
+/* ------------------------------------------------------------ moderation
+
+   The developer's side of Report (App Store Guideline 1.2 asks for reports to
+   be acted on within 24 hours). Used only by the /admin page, which checks
+   the caller is on the ADMIN_EMAILS list first. */
+
+export type StoredReport = ReportRecord & { id: string; created_at: string; resolved_at: string | null };
+
+/** Reports, newest first, unresolved before resolved. */
+export async function listReports(): Promise<StoredReport[]> {
+  const res = await rest("reports?select=*&order=resolved_at.desc.nullsfirst,created_at.desc&limit=200");
+  return (await res.json()) as StoredReport[];
+}
+
+export async function resolveReport(id: string): Promise<void> {
+  await rest(`reports?id=eq.${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ resolved_at: new Date().toISOString() }),
+  });
+}
+
+/** Take one question out of a group thread, for everyone. */
+export async function removeSharedTurn(shareId: string, turnId: string): Promise<boolean> {
+  const row = await getConversationRow(shareId);
+  if (!row) return false;
+  const turns = (Array.isArray(row.turns) ? row.turns : []).filter((t) => t.id !== turnId);
+  await rest(`${TABLE}?share_id=eq.${encodeURIComponent(shareId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ turns, updated_at: new Date().toISOString() }),
+  });
+  return true;
+}
+
+/** Stop someone signing in to Sourcely at all (Supabase's account ban). */
+export async function banUser(userId: string): Promise<void> {
+  const { url, key } = config();
+  const res = await fetch(`${url}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+    method: "PUT",
+    headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    // Supabase takes a duration, not a flag; a hundred years is "for good".
+    body: JSON.stringify({ ban_duration: "876000h" }),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new ShareError(`Couldn't ban that account (${res.status}). ${detail.slice(0, 160)}`, 502);
   }
 }

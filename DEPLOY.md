@@ -35,6 +35,7 @@ in this folder — `.vercelignore` keeps local env files out of the upload.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | yes | The `anon` key, **not** `service_role` |
 | `GEMINI_MODEL` | no | Defaults to `gemini-3.5-flash-lite` |
 | `MAX_SOURCES` | no | Defaults to `8` |
+| `ADMIN_EMAILS` | no | Comma-separated accounts allowed into `/admin` (the reports queue). Defaults to the contact address |
 
 Vercel does not apply new variables to a build that already exists. After
 adding any, redeploy — it is a required step, not a refinement.
@@ -65,6 +66,31 @@ else is redirected to a Vercel login.
 The `conversations` table and its `owner_id` column already exist. Any
 deployment pointed at the same Supabase project needs no migration. The SQL is
 in `README.md` if you ever start a fresh project.
+
+### Reports table
+
+Group threads let people report each other's questions (App Store Guideline
+1.2). Reports are stored in a `reports` table, reviewed at `/admin`. Run this
+once in Supabase → **SQL Editor**:
+
+```sql
+create table if not exists public.reports (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  reporter_id uuid not null,
+  share_id text not null,
+  turn_id text not null,
+  author_id uuid,
+  reason text not null,
+  note text not null default '',
+  question text not null default '',
+  resolved_at timestamptz
+);
+-- Only the server (service-role key) reads or writes it.
+alter table public.reports enable row level security;
+```
+
+Until it exists, reports still land in the Vercel logs, tagged `[report]`.
 
 ## A better workflow than uploading folders
 
