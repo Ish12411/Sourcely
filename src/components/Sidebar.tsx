@@ -300,6 +300,9 @@ export default function Sidebar({
             <a href="/privacy" className="ink-action" style={{ color: "var(--meta)", fontSize: "var(--step-label)" }}>
               Privacy
             </a>
+            <a href="/terms" className="ink-action" style={{ color: "var(--meta)", fontSize: "var(--step-label)" }}>
+              Terms
+            </a>
           </div>
         )}
 

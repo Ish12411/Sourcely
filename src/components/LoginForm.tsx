@@ -103,7 +103,9 @@ export default function LoginForm({
           email,
           password,
           // A record of the 13+ confirmation, kept with the account.
-          options: { data: { age_13_plus_confirmed_at: new Date().toISOString() } },
+          options: {
+            data: { age_13_plus_confirmed_at: new Date().toISOString(), terms_accepted_at: new Date().toISOString() },
+          },
         });
         if (error) throw error;
         // With email confirmation switched off, signUp returns a live session
@@ -337,7 +339,11 @@ export default function LoginForm({
                 style={{ flex: "none", width: 18, height: 18, marginTop: 1, accentColor: "var(--color-ink)" }}
               />
               <span>
-                I&apos;m 13 or older and I&apos;ve read the{" "}
+                I&apos;m 13 or older, and I agree to the{" "}
+                <a href="/terms" style={{ color: "var(--color-ink)" }}>
+                  terms
+                </a>{" "}
+                and{" "}
                 <a href="/privacy" style={{ color: "var(--color-ink)" }}>
                   privacy policy
                 </a>
@@ -383,6 +389,10 @@ export default function LoginForm({
         <p style={{ margin: "28px 0 0", font: "400 var(--step-label)/1.5 var(--font-sans)", color: "var(--meta)" }}>
           <a href="/privacy" className="ink-action" style={{ fontSize: "inherit" }}>
             Privacy
+          </a>
+          {" · "}
+          <a href="/terms" className="ink-action" style={{ fontSize: "inherit" }}>
+            Terms
           </a>
           {" — what's stored, who handles it, and how to delete it."}
         </p>

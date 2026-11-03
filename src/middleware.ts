@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 /** Reachable without being signed in. */
 // /privacy must be reachable signed-out: App Store Connect and App Review open
 // it cold, and so does anyone deciding whether to sign up in the first place.
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/auth/signout", "/privacy"];
+const PUBLIC_PATHS = ["/login", "/auth/callback", "/auth/signout", "/privacy", "/terms"];
 
 export async function middleware(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

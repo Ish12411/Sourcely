@@ -4,4 +4,6 @@
  * data sent), and everyone is asked again. Shared by client and server, so it
  * lives outside the server-only Supabase helpers.
  */
-export const AI_CONSENT_VERSION = 1;
+// 2: added agreement to the Terms (no tolerance for objectionable content),
+// so accounts created before the Terms existed agree to them too.
+export const AI_CONSENT_VERSION = 2;

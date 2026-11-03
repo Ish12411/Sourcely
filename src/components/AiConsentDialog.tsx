@@ -105,8 +105,13 @@ export default function AiConsentDialog({
           </p>
 
           <p style={{ margin: "12px 0 0" }}>
+            By continuing you also agree to the{" "}
+            <a href="/terms" style={{ color: "var(--color-ink)" }}>
+              Terms
+            </a>
+            : no offensive content or abuse in group threads, and reported content is reviewed within 24 hours.{" "}
             <a href="/privacy" style={{ color: "var(--color-ink)" }}>
-              Read the privacy policy
+              Privacy policy
             </a>
           </p>
         </div>
